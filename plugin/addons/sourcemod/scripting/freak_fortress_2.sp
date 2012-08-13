@@ -20,7 +20,11 @@
 #define ME 2048
 #define MAXSPECIALS 64
 #define MAXRANDOMS 16
-#define PLUGIN_VERSION "1.06"
+#define PLUGIN_VERSION "1.06b"
+
+#define HEALTHBAR_CLASS "monster_resource"
+#define HEALTHBAR_PROPERTY "m_iBossHealthPercentageByte"
+#define HEALTHBAR_MAX 255
 
 #define SOUNDEXCEPT_MUSIC 0
 #define SOUNDEXCEPT_VOICE 1
@@ -80,6 +84,8 @@ new Handle:cvarFirstRound;
 new Handle:cvarCircuitStun;
 new Handle:cvarSpecForceBoss;
 new Handle:cvarUseCountdown;
+
+new Handle:cvarHealthBar;
 
 new Handle:FF2Cookies;		// "queue_points music monologues classinfo rmb_help reload_help"
 /*
@@ -233,6 +239,8 @@ public OnPluginStart()
 	cvarCircuitStun = CreateConVar("ff2_circuit_stun", "2", "0 to disable Short Circuit stun, > 0 to make it stun Boss for x seconds", FCVAR_PLUGIN, true, 0.0);
 	cvarUseCountdown = CreateConVar("ff2_countdown", "120", "Seconds of deathly countdown (begins when only 1 enemy lefts)", FCVAR_PLUGIN);
 	cvarSpecForceBoss = CreateConVar("ff2_spec_force_boss", "0", "Spectators are allowed in Boss' queue.", FCVAR_PLUGIN, true, 0.0, true, 1.0);
+	
+	cvarHealthBar = CreateConVar("ff2_health_bar", "1", "Show boss health bar", FCVAR_PLUGIN, true, 0.0, true, 1.0); // Added by Powerlord
 	
 	HookEvent("player_changeclass", OnChangeClass); // FF2_1.06a (3of7)
 	HookEvent("teamplay_round_start", event_round_start);
@@ -1670,6 +1678,7 @@ public Action:MessageTimer(Handle:hTimer)
 	new String:s[512];
 	decl String:s2[4];
 	decl String:name[64];
+	
 	for(new i = 0; Boss[i]; i++)
 	{
 		if (!IsValidEdict(Boss[i])) continue;
@@ -1682,6 +1691,20 @@ public Action:MessageTimer(Handle:hTimer)
 			strcopy(s2,2,"");
 		Format(s, 512, "%s\n%t",s,"ff2_start",Boss[i],name,BossHealth[i]-BossHealthMax[i]*(BossLives[i]-1),s2);
 	}
+	
+	if (GetConVarBool(cvarHealthBar))
+	{
+		new healthBar = FindEntityByClassname(-1, HEALTHBAR_CLASS);
+		if (healthBar == -1)
+		{
+			// Shouldn't be necessary, during testing, entity 32 was always monster_resource regardless of settings
+			healthBar = CreateEntityByName(HEALTHBAR_CLASS);
+			DispatchSpawn(healthBar);
+		}
+		
+		SetEntProp(healthBar, Prop_Send, HEALTHBAR_PROPERTY, HEALTHBAR_MAX);
+	}
+	
 	for (new i = 1;  i <= MaxClients;  i++)
 		if (IsValidClient(i) && !(FF2flags[i] & FF2FLAG_HUDDISABLED))
 		{
@@ -2460,6 +2483,7 @@ public OnClientPutInServer(client)
 {
 	FF2flags[client] = 0;
 	SDKHook(client, SDKHook_OnTakeDamage, OnTakeDamage);
+	SDKHook(client, SDKHook_OnTakeDamagePost, OnTakeDamagePost);
 	Damage[client] = 0;
 	if (!AreClientCookiesCached(client)) return ;
 	new String:s[24];
@@ -3001,6 +3025,8 @@ OnPlayerDeath(client,attacker,bool:fake = false)
 		}
 		if (BossHealth[index] < 0)
 			BossHealth[index] = 0;
+			
+		UpdateHealthBar();
 		CreateTimer(0.5,Timer_RestoreLastClass,GetClientUserId(client));
 		return;
 	}
@@ -3261,6 +3287,8 @@ public Action:event_hurt(Handle:event, const String:name[], bool:dontBroadcast)
 				EmitSoundToAll(s);
 				EmitSoundToAll(s);
 			}
+			
+			UpdateHealthBar();
 		}
 	}
 	BossHealth[index]-= damage;
@@ -3292,7 +3320,7 @@ public Action:event_hurt(Handle:event, const String:name[], bool:dontBroadcast)
 	return Plugin_Continue;
 }
 
-public Action:OnTakeDamage(client, &attacker, &inflictor, &Float:damage, &damagetype, &weapon, Float:damageForce[3], Float:damagePosition[3])
+public Action:OnTakeDamage(client, &attacker, &inflictor, &Float:damage, &damagetype, &weapon, Float:damageForce[3], Float:damagePosition[3], damagecustom)
 {
 	if (!Enabled || !IsValidEdict(attacker))
 		return Plugin_Continue;
@@ -3491,83 +3519,99 @@ public Action:OnTakeDamage(client, &attacker, &inflictor, &Float:damage, &damage
 						if (GlowTimer[index] > 30.0) GlowTimer[index] = 30.0;
 					}
 				}
-				if (activeweapon == GetPlayerWeaponSlot(attacker, TFWeaponSlot_Melee) && damage > 1000.0)	//lousy way of checking backstabs
+				
+				
+				new bool:bIsBackstab = false;
+				if (GetFeatureStatus(FeatureType_Capability, "SDKHook_DmgCustomInOTD") == FeatureStatus_Available) // new way to check backstabs
+				{
+					if (damagecustom == TF_CUSTOM_BACKSTAB)
+					{
+						bIsBackstab = true;
+					}
+				}
+				else if (activeweapon == GetPlayerWeaponSlot(attacker, TFWeaponSlot_Melee) && damage > 1000.0)	//lousy way of checking backstabs
 				{
 					decl String:wepclassname[32];
 					if (GetEdictClassname(activeweapon, wepclassname, sizeof(wepclassname)) && strcmp(wepclassname, "tf_weapon_knife", false) == 0)	//more robust knife check
 					{
-						new Float:changedamage = BossHealthMax[index]*(LastBossIndex()+1)*BossLivesMax[index]*(0.12-Stabbed[index]/90);
-						Damage[attacker]+= RoundFloat(changedamage);
-						if (BossHealth[index] > RoundFloat(changedamage)) damage = 0.0;
-						else damage = changedamage;
-						BossHealth[index]-= RoundFloat(changedamage);
-						BossCharge[index][0]+= changedamage*100/BossRageDamage[Special[index]];
-						if (BossCharge[index][0] > 100.0)
-							BossCharge[index][0] = 100.0;
-						EmitSoundToClient(client,"player/spy_shield_break.wav", _, _, SNDLEVEL_TRAFFIC, SND_NOFLAGS, 0.7, 100, _, Pos, NULL_VECTOR, false, 0.0);
-						EmitSoundToClient(attacker,"player/spy_shield_break.wav", _, _, SNDLEVEL_TRAFFIC, SND_NOFLAGS, 0.7, 100, _, Pos, NULL_VECTOR, false, 0.0);
-						EmitSoundToClient(client,"player/crit_received3.wav", _, _, SNDLEVEL_TRAFFIC, SND_NOFLAGS, 0.7, 100, _, _, NULL_VECTOR, false, 0.0);
-						EmitSoundToClient(attacker,"player/crit_received3.wav", _, _, SNDLEVEL_TRAFFIC, SND_NOFLAGS, 0.7, 100, _, _, NULL_VECTOR, false, 0.0);
-						new Float:NextAttackTime=GetGameTime()+2.0;
-						SetEntPropFloat(attacker, Prop_Send, "m_flNextAttack", NextAttackTime);
-						if (!(FF2flags[attacker] & FF2FLAG_HUDDISABLED))
-							PrintCenterText(attacker,"You backstabbed him!");
-						if (!(FF2flags[client] & FF2FLAG_HUDDISABLED))
-							PrintCenterText(client,"You were just backstabbed!");
-						new Handle:stabevent = CreateEvent("player_hurt", true);
-						SetEventInt(stabevent, "userid", GetClientUserId(client));
-						SetEventInt(stabevent, "health", BossHealth[index]);
-						SetEventInt(stabevent, "attacker", GetClientUserId(attacker));
-						SetEventInt(stabevent, "damageamount", RoundFloat(changedamage));
-						SetEventInt(stabevent, "custom", TF_CUSTOM_BACKSTAB);
-						SetEventBool(stabevent, "crit", true);
-						SetEventBool(stabevent, "minicrit", false);
-						SetEventBool(stabevent, "allseecrit", true);
-						decl String:s[PLATFORM_MAX_PATH];
-						if (RandomSound("sound_stabbed",s,PLATFORM_MAX_PATH,index))
-						{
-							EmitSoundToAllExcept(SOUNDEXCEPT_VOICE,s, _, _, SNDLEVEL_TRAFFIC, SND_NOFLAGS, SNDVOL_NORMAL, 100, Boss[0], _, NULL_VECTOR, false, 0.0);
-							EmitSoundToAllExcept(SOUNDEXCEPT_VOICE,s,_, _, SNDLEVEL_TRAFFIC, SND_NOFLAGS, SNDVOL_NORMAL, 100, Boss[0], _, NULL_VECTOR, false, 0.0);
-						}
-						SetEventInt(stabevent, "weaponid", TF_WEAPON_KNIFE);
-						FireEvent(stabevent);
-						if (wepindex == 225 || wepindex == 574)
-							CreateTimer(0.3, Timer_DisguiseBackstab, GetClientUserId(attacker));
-						new invis_watch=GetPlayerWeaponSlot(attacker, TFWeaponSlot_PDA);
-						new iw_index = (IsValidEntity(invis_watch) && invis_watch > MaxClients ? GetEntProp(invis_watch, Prop_Send, "m_iItemDefinitionIndex") : -1);
-						if (iw_index==59)	//Dead Ringer						
-							SetEntPropFloat(attacker, Prop_Send, "m_flStealthNextChangeTime", NextAttackTime);
-						else if (wepindex == 356)
-						{
-							new health = GetClientHealth(attacker) + 100;
-							if (health > 270) health = 270;
-							SetEntProp(attacker, Prop_Data, "m_iHealth", health);
-							SetEntProp(attacker, Prop_Send, "m_iHealth", health);
-						}
-						if (Stabbed[index] < 5)
-							Stabbed[index]++;
-						new healers[MAXPLAYERS];
-						new healercount = 0;
-						for(new i = 1; i <= MaxClients; i++)
-						{
-							if(IsValidClient(i) && IsPlayerAlive(i) && (GetHealingTarget(i,true) == attacker))
-							{
-								healers[healercount] = i;
-								healercount++;
-							}
-						}
-						for(new i = 0; i < healercount; i++)
-						{
-							if(IsValidClient(healers[i]) && IsPlayerAlive(healers[i]))
-							{
-								if (TF2_IsPlayerInCondition(healers[i], TFCond_Ubercharged))
-									Damage[healers[i]]+= RoundFloat(changedamage);
-								else
-									Damage[healers[i]]+= RoundFloat(changedamage/(healercount+1));
-							}
-						}
-						return Plugin_Changed;
+						bIsBackstab = true;
 					}
+				}
+				
+				if (bIsBackstab)
+				{
+					new Float:changedamage = BossHealthMax[index]*(LastBossIndex()+1)*BossLivesMax[index]*(0.12-Stabbed[index]/90);
+					Damage[attacker]+= RoundFloat(changedamage);
+					if (BossHealth[index] > RoundFloat(changedamage)) damage = 0.0;
+					else damage = changedamage;
+					BossHealth[index]-= RoundFloat(changedamage);
+					BossCharge[index][0]+= changedamage*100/BossRageDamage[Special[index]];
+					if (BossCharge[index][0] > 100.0)
+						BossCharge[index][0] = 100.0;
+					EmitSoundToClient(client,"player/spy_shield_break.wav", _, _, SNDLEVEL_TRAFFIC, SND_NOFLAGS, 0.7, 100, _, Pos, NULL_VECTOR, false, 0.0);
+					EmitSoundToClient(attacker,"player/spy_shield_break.wav", _, _, SNDLEVEL_TRAFFIC, SND_NOFLAGS, 0.7, 100, _, Pos, NULL_VECTOR, false, 0.0);
+					EmitSoundToClient(client,"player/crit_received3.wav", _, _, SNDLEVEL_TRAFFIC, SND_NOFLAGS, 0.7, 100, _, _, NULL_VECTOR, false, 0.0);
+					EmitSoundToClient(attacker,"player/crit_received3.wav", _, _, SNDLEVEL_TRAFFIC, SND_NOFLAGS, 0.7, 100, _, _, NULL_VECTOR, false, 0.0);
+					new Float:NextAttackTime=GetGameTime()+2.0;
+					SetEntPropFloat(attacker, Prop_Send, "m_flNextAttack", NextAttackTime);
+					if (!(FF2flags[attacker] & FF2FLAG_HUDDISABLED))
+						PrintCenterText(attacker,"You backstabbed him!");
+					if (!(FF2flags[client] & FF2FLAG_HUDDISABLED))
+						PrintCenterText(client,"You were just backstabbed!");
+					new Handle:stabevent = CreateEvent("player_hurt", true);
+					SetEventInt(stabevent, "userid", GetClientUserId(client));
+					SetEventInt(stabevent, "health", BossHealth[index]);
+					SetEventInt(stabevent, "attacker", GetClientUserId(attacker));
+					SetEventInt(stabevent, "damageamount", RoundFloat(changedamage));
+					SetEventInt(stabevent, "custom", TF_CUSTOM_BACKSTAB);
+					SetEventBool(stabevent, "crit", true);
+					SetEventBool(stabevent, "minicrit", false);
+					SetEventBool(stabevent, "allseecrit", true);
+					decl String:s[PLATFORM_MAX_PATH];
+					if (RandomSound("sound_stabbed",s,PLATFORM_MAX_PATH,index))
+					{
+						EmitSoundToAllExcept(SOUNDEXCEPT_VOICE,s, _, _, SNDLEVEL_TRAFFIC, SND_NOFLAGS, SNDVOL_NORMAL, 100, Boss[0], _, NULL_VECTOR, false, 0.0);
+						EmitSoundToAllExcept(SOUNDEXCEPT_VOICE,s,_, _, SNDLEVEL_TRAFFIC, SND_NOFLAGS, SNDVOL_NORMAL, 100, Boss[0], _, NULL_VECTOR, false, 0.0);
+					}
+					SetEventInt(stabevent, "weaponid", TF_WEAPON_KNIFE);
+					FireEvent(stabevent);
+					if (wepindex == 225 || wepindex == 574)
+						CreateTimer(0.3, Timer_DisguiseBackstab, GetClientUserId(attacker));
+					new invis_watch=GetPlayerWeaponSlot(attacker, TFWeaponSlot_PDA);
+					new iw_index = (IsValidEntity(invis_watch) && invis_watch > MaxClients ? GetEntProp(invis_watch, Prop_Send, "m_iItemDefinitionIndex") : -1);
+					if (iw_index==59)	//Dead Ringer						
+						SetEntPropFloat(attacker, Prop_Send, "m_flStealthNextChangeTime", NextAttackTime);
+					else if (wepindex == 356)
+					{
+						new health = GetClientHealth(attacker) + 100;
+						if (health > 270) health = 270;
+						SetEntProp(attacker, Prop_Data, "m_iHealth", health);
+						SetEntProp(attacker, Prop_Send, "m_iHealth", health);
+					}
+					if (Stabbed[index] < 5)
+						Stabbed[index]++;
+					new healers[MAXPLAYERS];
+					new healercount = 0;
+					for(new i = 1; i <= MaxClients; i++)
+					{
+						if(IsValidClient(i) && IsPlayerAlive(i) && (GetHealingTarget(i,true) == attacker))
+						{
+							healers[healercount] = i;
+							healercount++;
+						}
+					}
+					for(new i = 0; i < healercount; i++)
+					{
+						if(IsValidClient(healers[i]) && IsPlayerAlive(healers[i]))
+						{
+							if (TF2_IsPlayerInCondition(healers[i], TFCond_Ubercharged))
+								Damage[healers[i]]+= RoundFloat(changedamage);
+							else
+								Damage[healers[i]]+= RoundFloat(changedamage/(healercount+1));
+						}
+					}
+					
+					return Plugin_Changed;
 				}
 			}
 			else
@@ -3602,6 +3646,7 @@ public Action:OnTakeDamage(client, &attacker, &inflictor, &Float:damage, &damage
 					}
 				}
 			}
+			
 		}
 		else
 		{
@@ -5538,6 +5583,75 @@ public Action:VSH_OnGetRoundState(&result)
 		return Plugin_Changed;
 	}
 	return Plugin_Continue;
+}
+
+UpdateHealthBar()
+{
+	// Adjust health bar
+	if (!GetConVarBool(cvarHealthBar))
+	{
+		return;
+	}
+	new healthAmount = 0;
+	new maxHealthAmount = 0;
+	
+	new count = 0;
+	
+	for (new i = 0; i < MaxClients; i++)
+	{
+		if (IsValidClient(Boss[i]) && IsPlayerAlive(Boss[i]))
+		{
+			count++;
+			healthAmount += BossHealth[i]-BossHealthMax[i]*(BossLives[i]-1);
+			maxHealthAmount += BossHealthMax[i];
+		}
+	}
+	
+	new healthPercent = 0;
+
+	if (count > 0)
+	{
+		healthPercent = RoundToCeil(float(healthAmount) / float(maxHealthAmount) * float(HEALTHBAR_MAX));
+
+		if (healthPercent > HEALTHBAR_MAX)
+		{
+			healthPercent = HEALTHBAR_MAX;
+		}
+		else if (healthPercent <= 0)
+		{
+			healthPercent = 1;
+		}
+	}
+	
+	//PrintToChatAll("Updating healthbar to %d", healthPercent);
+	
+	new healthBar = FindEntityByClassname(-1, HEALTHBAR_CLASS);
+	if (healthBar != -1)
+	{
+		SetEntProp(healthBar, Prop_Send, HEALTHBAR_PROPERTY, healthPercent);
+	}
+}
+
+public OnTakeDamagePost(client, attacker, inflictor, Float:damage, damagetype)
+{
+	if (IsBoss(client))
+	{
+		new index = GetBossIndex(client);
+		
+		if (index == -1)
+			return;
+		
+		if (TF2_IsPlayerInCondition(Boss[index],TFCond_Jarated))
+			TF2_RemoveCondition(Boss[index],TFCond_Jarated);
+		
+		//if (TF2_IsPlayerInCondition(Boss[index], TFCond_Milked))
+		//	TF2_RemoveCondition(Boss[index],TFCond_Milked);
+		
+		if (TF2_IsPlayerInCondition(Boss[index], TFCond_MarkedForDeath))
+			TF2_RemoveCondition(Boss[index], TFCond_MarkedForDeath);
+
+		UpdateHealthBar();
+	}
 }
 
 #include < freak_fortress_2_vsh_feedback > 
