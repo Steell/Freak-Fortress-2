@@ -7,6 +7,8 @@
 
 //Plugin thread on AlliedMods: http://forums.alliedmods.net/showthread.php?t=182108
 
+//Updated by Otokiru and Powerlord after Rainbolt Dash got sucked into DOTA2
+
 #pragma semicolon 1
 
 #include <sourcemod>
@@ -1036,6 +1038,19 @@ public Action:Timer_GogoBoss(Handle:hTimer)
 			if (Boss[i])
 			{
 				CreateTimer(0.1,MakeBoss,i);
+				
+				if (chkFirstHale == 0)
+				{
+					if (!GetConVarBool(cvarFirstRound) && RoundCount == 0)
+					{
+						CreateTimer(3.0,checkFirstHale, _, TIMER_FLAG_NO_MAPCHANGE);
+					}
+					else if (GetConVarBool(cvarFirstRound) && RoundCount == 1)
+					{
+						CreateTimer(3.0,checkFirstHale, _, TIMER_FLAG_NO_MAPCHANGE);
+					}
+				}
+				
 				BossInfoTimer[i][0] = CreateTimer(30.0,BossInfoTimer_begin,i);
 			}
 		}
@@ -1710,6 +1725,19 @@ public Action:MessageTimer(Handle:hTimer)
 			strcopy(s2,2,"");
 		Format(s, 512, "%s\n%t",s,"ff2_start",Boss[i],name,BossHealth[i]-BossHealthMax[i]*(BossLives[i]-1),s2);
 	}
+	
+	if (chkFirstHale == 0)
+	{
+		if (!GetConVarBool(cvarFirstRound) && RoundCount == 0)
+		{
+			CreateTimer(3.0,checkFirstHale, _, TIMER_FLAG_NO_MAPCHANGE);
+		}
+		else if (GetConVarBool(cvarFirstRound) && RoundCount == 1)
+		{
+			CreateTimer(3.0,checkFirstHale, _, TIMER_FLAG_NO_MAPCHANGE);
+		}
+	}
+	
 	for (new i = 1;  i <= MaxClients;  i++)
 		if (IsValidClient(i) && !(FF2flags[i] & FF2FLAG_HUDDISABLED))
 		{
@@ -1830,29 +1858,33 @@ public Action:MakeBoss(Handle:hTimer,any:index)
 	SetEntProp(Boss[index], Prop_Data, "m_iMaxHealth",BossHealthMax[index]);
 
 	SetClientQueuePoints(Boss[index], 0);
-	if(RoundCount==0&&chkFirstHale==0)
-		cFH(Boss[index]);
-
+	
 	return Plugin_Continue;
 }
 
-public cFH(any:i)
+public Action:checkFirstHale(Handle:timer)
 {
-	CreateTimer(3.0,checkFirstHale,i);
-}
-
-public Action:checkFirstHale(Handle:timer, any:i)
-{
-	new TFClassType:oldclass = TF2_GetPlayerClass(i);
-	PrintToChat(i,"\x01\x04[FF2] First-round Hale Bug Check!");
 	b_allowBossChgClass = true;
-	ForcePlayerSuicide(i);
-	if(oldclass==TFClass_Spy)
-		TF2_SetPlayerClass(i, TFClass_Soldier);
-	else
-		TF2_SetPlayerClass(i, TFClass_Spy);
+
+	for(new i = 0; i <= MaxClients; i++)
+	{
+		new client = Boss[i];
+		
+		if (client == 0)
+			break;
+		
+		new TFClassType:oldclass = TF2_GetPlayerClass(i);
+		PrintToChat(i,"\x01\x04[FF2] First-round Hale Bug Check!");
+		ForcePlayerSuicide(i);
+		if(oldclass==TFClass_Spy)
+			TF2_SetPlayerClass(i, TFClass_Soldier);
+		else
+			TF2_SetPlayerClass(i, TFClass_Spy);
+		PrintToChat(i,"\x01\x04[FF2] We'll fix you up when the game starts.");
+		
+	}
 	b_allowBossChgClass = false;
-	PrintToChat(i,"\x01\x04[FF2] We'll fix you up when the game starts.");
+
 	chkFirstHale++;
 }
 
