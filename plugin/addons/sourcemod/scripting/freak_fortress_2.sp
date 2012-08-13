@@ -720,12 +720,7 @@ public Action:event_round_start(Handle:event, const String:name[], bool:dontBroa
 		FF2RoundState = -1;
 		return Plugin_Continue;
 	}
-	else if (RoundCount > 0 || GetConVarBool(cvarFirstRound))
-	{
-		Enabled = true;
-		EnableSubPlugins();
-	}
-	else
+	else if (RoundCount == 0 && !GetConVarBool(cvarFirstRound))
 	{
 		CPrintToChatAll("{olive}[FF2]{default} %t","first_round");
 		Enabled = false;
@@ -751,6 +746,8 @@ public Action:event_round_start(Handle:event, const String:name[], bool:dontBroa
 		}
 		return Plugin_Continue;
 	}
+	Enabled = true;
+	EnableSubPlugins();
 
 	CheckArena();
 	PickSpecial(0,0);
