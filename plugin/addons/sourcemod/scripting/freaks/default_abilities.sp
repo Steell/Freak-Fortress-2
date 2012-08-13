@@ -130,6 +130,10 @@ public Action:FF2_OnAbility2(index,const String:plugin_name[],const String:abili
 				RedAlivePlayers=true;
 				break;
 			}
+		
+		if (!RedAlivePlayers)
+			return Plugin_Continue;
+		
 		do
 		{
 			pingas++;
@@ -137,7 +141,7 @@ public Action:FF2_OnAbility2(index,const String:plugin_name[],const String:abili
 			if (pingas==100)
 				return Plugin_Continue;
 		}
-		while (RedAlivePlayers && (!IsValidEdict(target) || (GetClientTeam(target)==BossTeam) || !IsPlayerAlive(target)));
+		while (!IsValidEdict(target) || (GetClientTeam(target)==BossTeam) || !IsPlayerAlive(target));
 		
 		GetEntPropVector(target, Prop_Data, "m_vecOrigin", pos);
 		TeleportEntity(Boss, pos, NULL_VECTOR, NULL_VECTOR);

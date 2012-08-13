@@ -3661,7 +3661,7 @@ public Action:OnTakeDamage(client, &attacker, &inflictor, &Float:damage, &damage
 						new healercount = 0;
 						for (new i = 1; i <= MaxClients; i++)
 						{
-							if (IsValidClient(i) && IsPlayerAlive(i) && (GetHealingTarget(i) == attacker))
+							if (IsValidClient(i) && IsPlayerAlive(i) && (GetHealingTarget(i, true) == attacker))
 							{
 								healers[healercount] = i;
 								healercount++;
