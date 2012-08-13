@@ -25,6 +25,8 @@
 #define SOUNDEXCEPT_MUSIC 0
 #define SOUNDEXCEPT_VOICE 1
 
+new bool:b_allowBossChgClass = false; 		// FF2_1.06a (1of7)
+new bool:b_BossChgClassDetected = false; 	// FF2_1.06a (2of7)
 new OtherTeam=2;
 new BossTeam=3;
 new FF2RoundState;
@@ -232,6 +234,7 @@ public OnPluginStart()
 	cvarUseCountdown = CreateConVar("ff2_countdown", "120", "Seconds of deathly countdown (begins when only 1 enemy lefts)", FCVAR_PLUGIN);
 	cvarSpecForceBoss = CreateConVar("ff2_spec_force_boss", "0", "Spectators are allowed in Boss' queue.", FCVAR_PLUGIN, true, 0.0, true, 1.0);
 	
+	HookEvent("player_changeclass", OnChangeClass); // FF2_1.06a (3of7)
 	HookEvent("teamplay_round_start", event_round_start);
 	HookEvent("teamplay_round_win", event_round_end);
 	HookEvent("player_changeclass", event_changeclass);
@@ -1731,6 +1734,22 @@ EquipBoss(index)
 	}
 }
 
+// FF2_1.06a -start- (4of7)
+public OnChangeClass(Handle:event, const String:name[], bool:dontBroadcast) 
+{ 
+    new iClient = GetClientOfUserId(GetEventInt(event, "userid")), 
+            TFClassType:oldclass = TF2_GetPlayerClass(iClient), 
+            iTeam   = GetClientTeam(iClient); 
+     
+    if(iTeam==BossTeam && !b_allowBossChgClass && IsPlayerAlive(iClient))  
+    { 
+        PrintToChat(iClient,"\x01\x04[FF2] Do NOT change class when you're a HALE!"); 
+        b_BossChgClassDetected = true; 
+        TF2_SetPlayerClass(iClient, oldclass); 
+    } 
+} 
+// FF2_1.06a -end-
+
 public Action:MakeBoss(Handle:hTimer,any:index)
 {
 	if (!Boss[index] || !IsValidEdict(Boss[index]) || !IsClientInGame(Boss[index]))
@@ -1739,10 +1758,12 @@ public Action:MakeBoss(Handle:hTimer,any:index)
 	TF2_SetPlayerClass(Boss[index], TFClassType:KvGetNum(BossKV[Special[index]], "class",1));
 	if (GetClientTeam(Boss[index]) != BossTeam)
 	{
+		b_allowBossChgClass = true; // FF2_1.06a (5of7)
 		SetEntProp(Boss[index], Prop_Send, "m_lifeState", 2);
 		ChangeClientTeam(Boss[index], BossTeam);
 		SetEntProp(Boss[index], Prop_Send, "m_lifeState", 0);
 		TF2_RespawnPlayer(Boss[index]);
+		b_allowBossChgClass = false; // FF2_1.06a (6of7)
 	}
 	if (!IsPlayerAlive(Boss[index]))
 	{
@@ -2459,6 +2480,14 @@ public Action:event_player_spawn(Handle:event, const String:name[], bool:dontBro
 		
 	SetVariantString("");
 	AcceptEntityInput(client, "SetCustomModel");
+	
+	// FF2_1.06a -start- (7of7)
+	if (b_BossChgClassDetected)
+	{
+		TF2_RemoveAllWeapons(client);
+		b_BossChgClassDetected = false;
+	}
+    // FF2_1.06a -end-
 	
 	if ((FF2RoundState != 1 || !(FF2flags[client] & FF2FLAG_ALLOWSPAWNINBOSSTEAM)))
 		CreateTimer(0.1, MakeNotBoss, GetClientUserId(client));
