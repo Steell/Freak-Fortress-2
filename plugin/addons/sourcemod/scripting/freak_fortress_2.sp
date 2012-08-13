@@ -28,6 +28,7 @@
 #define HEALTHBAR_CLASS "monster_resource"
 #define HEALTHBAR_PROPERTY "m_iBossHealthPercentageByte"
 #define HEALTHBAR_MAX 255
+#define MONOCULUS "eyeball_boss"
 
 new chkFirstHale;
 new bool:b_allowBossChgClass = false; 		// FF2_1.06a (1of7)
@@ -134,6 +135,10 @@ new mp_forcecamera;
 new Handle:cvarNextmap;
 new bool:isSubPluginsEnabled;
 
+// Healthbar-related things
+new g_healthBar = -1;
+new g_Monoculus = -1; // Track Monoculus for health bar
+
 static const String:ff2versiontitles[][] = 		//the last line of this is what determines the displayed plugin version
 {
 	"1.0",
@@ -145,7 +150,8 @@ static const String:ff2versiontitles[][] = 		//the last line of this is what det
 	"1.05",
 	"1.05",
 	"1.06",
-	"1.06c"
+	"1.06c",
+	"1.06d"
 };
 
 static const String:ff2versiondates[][] = 
@@ -159,7 +165,8 @@ static const String:ff2versiondates[][] =
 	"29 April 2012",
 	"29 April 2012",
 	"1 May 2012",
-	"22 June 2012"
+	"22 June 2012",
+	"3 July 2012"
 };
 
 static const maxversion = (sizeof(ff2versiontitles) - 1);
@@ -244,6 +251,7 @@ public OnPluginStart()
 	cvarSpecForceBoss = CreateConVar("ff2_spec_force_boss", "0", "Spectators are allowed in Boss' queue.", FCVAR_PLUGIN, true, 0.0, true, 1.0);
 	
 	cvarHealthBar = CreateConVar("ff2_health_bar", "1", "Show boss health bar", FCVAR_PLUGIN, true, 0.0, true, 1.0); // Added by Powerlord
+	HookConVarChange(cvarHealthBar, HealthbarEnableChanged);
 
 	HookEvent("player_changeclass", OnChangeClass); // FF2_1.06a (3of7)
 	HookEvent("teamplay_round_start", event_round_start);
@@ -400,6 +408,9 @@ public OnMapStart()
 	}
 	RoundCount = 0;
 	bMedieval = FindEntityByClassname(-1, "tf_logic_medieval")!= -1 || bool:GetConVarInt(FindConVar("tf_medieval"));
+	
+	// For healthbar
+	FindHealthBar();
 }
 
 public OnMapEnd()
@@ -1248,6 +1259,8 @@ public Action:event_round_end(Handle:event, const String:name[], bool:dontBroadc
 		}
 	}
 	CalcQueuePoints();
+	
+	UpdateHealthBar();
 
 	return Plugin_Continue;
 }
@@ -4637,12 +4650,21 @@ stock FindVersionData(Handle:panel, versionindex)
 {
 	switch (versionindex)
 	{
+		case 10: // 1.06d
+		{
+			DrawPanelText(panel, "1) Fix first boss having missing health or abilities. (Otokiru)");
+			DrawPanelText(panel, "2) Health bar now goes away if the boss wins the round. (Powerlord)");
+			DrawPanelText(panel, "3) Health bar cedes control to Monoculus if he is summoned. (Powerlord)");
+			DrawPanelText(panel, "4) Health bar instantly updates if enabled or disabled via cvar mid-game. (Powerlord)");
+		}
+		
+		
 		case 9: //1.06c
 		{
-			DrawPanelText(panel, "1) Remove weapons if a player tries to switch classes when they become boss to prevent an exploit..");
-			DrawPanelText(panel, "2) Reset hale's queue points to prevent the 'retry' exploit");
-			DrawPanelText(panel, "3) Better detection of backstabs.");
-			DrawPanelText(panel, "4) Boss now has optional life meter on screen.");
+			DrawPanelText(panel, "1) Remove weapons if a player tries to switch classes when they become boss to prevent an exploit. (Otokiru)");
+			DrawPanelText(panel, "2) Reset hale's queue points to prevent the 'retry' exploit. (Otokiru)");
+			DrawPanelText(panel, "3) Better detection of backstabs. (Powerlord)");
+			DrawPanelText(panel, "4) Boss now has optional life meter on screen. (Powerlord)");
 		}
 		case 8: //1.06
 		{
@@ -5609,7 +5631,7 @@ public Action:VSH_OnGetRoundState(&result)
 UpdateHealthBar()
 {
 	// Adjust health bar
-	if (!GetConVarBool(cvarHealthBar))
+	if (!GetConVarBool(cvarHealthBar) || g_Monoculus != -1)
 	{
 		return;
 	}
@@ -5646,11 +5668,7 @@ UpdateHealthBar()
 	
 	//PrintToChatAll("Updating healthbar to %d", healthPercent);
 	
-	new healthBar = FindEntityByClassname(-1, HEALTHBAR_CLASS);
-	if (healthBar != -1)
-	{
-		SetEntProp(healthBar, Prop_Send, HEALTHBAR_PROPERTY, healthPercent);
-	}
+	SetEntProp(g_healthBar, Prop_Send, HEALTHBAR_PROPERTY, healthPercent);
 }
 
 public OnTakeDamagePost(client, attacker, inflictor, Float:damage, damagetype)
@@ -5674,5 +5692,65 @@ public OnTakeDamagePost(client, attacker, inflictor, Float:damage, damagetype)
 		UpdateHealthBar();
 	}
 }
+
+// These are solely for tracking Monoculus and auto-disabling/enabling the healthbar
+public OnEntityCreated(entity, const String:classname[])
+{
+	if (!GetConVarBool(cvarHealthBar))
+	{
+		return;
+	}
+
+	if (g_Monoculus == -1 && StrEqual(classname, MONOCULUS))
+	{
+		g_Monoculus = entity;
+	}
+}
+
+public OnEntityDestroyed(entity)
+{
+	if (entity == -1)
+	{
+		return;
+	}
+	
+	if (entity == g_healthBar)
+	{
+		g_healthBar = CreateEntityByName(HEALTHBAR_CLASS, entity);
+	}
+	else if (entity == g_Monoculus)
+	{
+		g_Monoculus = FindEntityByClassname(-1, MONOCULUS);
+		if (g_Monoculus == entity)
+		{
+			g_Monoculus = FindEntityByClassname(entity, MONOCULUS);
+		}
+	}	
+}
+
+FindHealthBar()
+{
+	g_healthBar = FindEntityByClassname(-1, HEALTHBAR_CLASS);
+	
+	// This shouldn't happen, but just in case...
+	if (g_healthBar == -1)
+	{
+		g_healthBar = CreateEntityByName(HEALTHBAR_CLASS);
+	}
+}
+
+public HealthbarEnableChanged(Handle:convar, const String:oldValue[], const String:newValue[])
+{
+	// Easier than checking newvalue and oldvalue
+	if (GetConVarBool(cvarHealthBar))
+	{
+		UpdateHealthBar();
+	}
+	else if (g_Monoculus == -1)
+	{
+		SetEntProp(g_healthBar, Prop_Send, HEALTHBAR_PROPERTY, 0);
+	}
+}
+
 
 #include < freak_fortress_2_vsh_feedback > 
