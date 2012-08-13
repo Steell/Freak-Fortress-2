@@ -71,12 +71,11 @@ Rage_NewWeapon(index,const String:ability_name[])
 		SetEntPropEnt(Boss, Prop_Send, "m_hActiveWeapon", weapon);
 	new ammo=FF2_GetAbilityArgument(index,this_plugin_name,ability_name, 5);
 	if (ammo>0)
-		SetAmmo(Boss, slot,ammo);
+		SetAmmo(Boss, weapon, ammo);
 }
 
-stock SetAmmo(client, slot, ammo)
+stock SetAmmo(client, weapon, ammo)
 {
-	new weapon = GetPlayerWeaponSlot(client, slot);
 	if (IsValidEntity(weapon))
 	{
 		SetEntProp(weapon, Prop_Send, "m_iClip1", 0);

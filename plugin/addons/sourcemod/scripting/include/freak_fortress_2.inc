@@ -252,10 +252,8 @@ native FF2_SetQueuePoints( client, value );
  * FF2_OnAbility:
  * Begins when Boss uses ability (stun rage,jump,uber rage etc)
  * Calls each 0.2 seconds for charge abilities
- * Begins when Boss uses ability (stun rage,jump,uber rage etc)
- * Calls each 0.2 seconds for charge abilities
  *
- * Use FF2_PreAbility with return Plugin_Stop to prevent FF2_OnAbility only!
+ * Use FF2_PreAbility with enabled=false only to prevent FF2_OnAbility!
  *
  * @param index 		Index of boss (0, as usual, but, for example, companion like Seeldier has 1)
  * @param plugin_name	Name of plugin with this ability
@@ -269,9 +267,9 @@ native FF2_SetQueuePoints( client, value );
  *							1 - on charging
  *							2 - is charged
  *							3 - on use
- * @return		    	Plugin_Stop can not preve Ability. Use FF2_PreAbility with return Plugin_Stop
+ * @return		    	Plugin_Stop can not preve Ability. Use FF2_PreAbility with enabled = false
  */
-forward FF2_PreAbility( index, const String:plugin_name[], const String:ability_name[], action );
+forward FF2_PreAbility( index, const String:plugin_name[], const String:ability_name[], action, &enabled = true );
 forward Action:FF2_OnAbility( index, const String:plugin_name[], const String:ability_name[], action );
 
 /**

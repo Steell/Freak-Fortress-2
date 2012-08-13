@@ -20,7 +20,7 @@
 #define ME 2048
 #define MAXSPECIALS 64
 #define MAXRANDOMS 16
-#define PLUGIN_VERSION "1.05"
+#define PLUGIN_VERSION "1.06"
 
 #define SOUNDEXCEPT_MUSIC 0
 #define SOUNDEXCEPT_VOICE 1
@@ -134,7 +134,8 @@ static const String:ff2versiontitles[][] = 		//the last line of this is what det
 	"1.03",
 	"1.04",
 	"1.05",
-	"1.05"
+	"1.05",
+	"1.06"
 };
 
 static const String:ff2versiondates[][] = 
@@ -146,7 +147,8 @@ static const String:ff2versiondates[][] =
 	"19 April 2012",
 	"21 April 2012",
 	"29 April 2012",
-	"29 April 2012"
+	"29 April 2012",
+	"1 May 2012"
 };
 
 static const maxversion = (sizeof(ff2versiontitles) - 1);
@@ -916,6 +918,11 @@ public Action:event_round_start(Handle:event, const String:name[], bool:dontBroa
 	Boss[0] = FindBosses(see);
 	PickSpecial(0,0);
 	see[Boss[0]] = true;
+	if ((Special[0] < 0) || !BossKV[Special[0]])
+	{
+		LogError("[FF2] I just don't know what went wrong");
+		return Plugin_Continue;
+	}
 	KvRewind(BossKV[Special[0]]);
 	BossLivesMax[0] = KvGetNum(BossKV[Special[0]], "lives",1);
 	SetEntProp(Boss[0], Prop_Data, "m_iMaxHealth",1337);
@@ -1709,7 +1716,7 @@ EquipBoss(index)
 		{
 			KvGetString(BossKV[Special[index]], "name",s, 64);
 			KvGetString(BossKV[Special[index]], "attributes",s2, 128);
-			Format(s2,128,"68 ;  2 ;  2 ;  3.0 ;  259 ;  1 ; 269 ; 1 ; %s",s2);
+			Format(s2,128,"68 ; 2 ; 2 ; 3.0 ; 259 ; 1 ; 269 ; 1 ; %s",s2);
 			new BossWeapon = SpawnWeapon(Boss[index],s,KvGetNum(BossKV[Special[index]], "index"),101,5,s2);
 			if (!KvGetNum(BossKV[Special[index]], "show",0))
 				SetEntProp(BossWeapon, Prop_Send, "m_iWorldModelIndex", -1);
@@ -4196,7 +4203,7 @@ stock SpawnWeapon(client,String:name[],index,level,qual,String:att[])
 	TF2Items_SetLevel(hWeapon, level);
 	TF2Items_SetQuality(hWeapon, qual);
 	new String:atts[32][32];
-	new count = ExplodeString(att, " ;  ", atts, 32, 32);
+	new count = ExplodeString(att, " ; ", atts, 32, 32);
 	if (count > 0)
 	{
 		TF2Items_SetNumAttributes(hWeapon, count/2);
@@ -4542,6 +4549,14 @@ stock FindVersionData(Handle:panel, versionindex)
 {
 	switch (versionindex)
 	{
+		case 8: //1.06
+		{
+			DrawPanelText(panel, "1) Fixed attributes key for weaponN block. Now 1 space needed for explode string.");
+			DrawPanelText(panel, "2) Disabled vote for charset when there is only 1 not hidden chatset.");
+			DrawPanelText(panel, "3) Fixed \"Invalid key value handle 0 (error 4)\" when when round starts.");
+			DrawPanelText(panel, "4) Fixed ammo for special_noanims.ff2\\rage_new_weapon ability.");
+			DrawPanelText(panel, "Coming soon: weapon balance will be moved into config file.");
+		}
 		case 7: //1.05
 		{
 			DrawPanelText(panel, "1) Added FF2_OnLoadCharacterSet forward.");
@@ -4946,19 +4961,20 @@ public Action:Timer_CvarChangeNextmap(Handle:hTimer)
 	new Handle:Kv = CreateKeyValues("");
 	FileToKeyValues(Kv, s);
 	AddMenuItem(dVoteMenu,"0 Random", "Random");
-	new i=0;
+	new i,j;
 	do
 	{
 		i++;
 		if (KvGetNum(Kv, "hidden",0))
 			continue;
+		j++;
 		KvGetSectionName(Kv, s, 64);
 		Format(s2,64,"%i %s",i,s);
 		AddMenuItem(dVoteMenu,s2,s);
 	}
 	while (KvGotoNextKey(Kv));
 	CloseHandle(Kv);
-	if (i > 1)
+	if (j > 1)
 	{
 		FF2CharSet = i;
 		new Handle:see = FindConVar("sm_mapvote_voteduration");

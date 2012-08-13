@@ -123,6 +123,7 @@ public Action:OnTakeDamage(client, &attacker, &inflictor, &Float:damage, &damage
 	if (attacker > 0 && attacker <= MaxClients)
 	{
 		new index = FF2_GetBossIndex(client);
+		LogMessage("%f %i %i",damage,attacker,index);
 		if (index != -1 && no_damage[index])
 			return Plugin_Handled;
 	}
