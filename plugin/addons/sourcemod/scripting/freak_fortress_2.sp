@@ -20,14 +20,14 @@
 #define ME 2048
 #define MAXSPECIALS 64
 #define MAXRANDOMS 16
-#define PLUGIN_VERSION "1.06b"
+#define PLUGIN_VERSION "1.06c"
+
+#define SOUNDEXCEPT_MUSIC 0
+#define SOUNDEXCEPT_VOICE 1
 
 #define HEALTHBAR_CLASS "monster_resource"
 #define HEALTHBAR_PROPERTY "m_iBossHealthPercentageByte"
 #define HEALTHBAR_MAX 255
-
-#define SOUNDEXCEPT_MUSIC 0
-#define SOUNDEXCEPT_VOICE 1
 
 new bool:b_allowBossChgClass = false; 		// FF2_1.06a (1of7)
 new bool:b_BossChgClassDetected = false; 	// FF2_1.06a (2of7)
@@ -143,7 +143,8 @@ static const String:ff2versiontitles[][] = 		//the last line of this is what det
 	"1.04",
 	"1.05",
 	"1.05",
-	"1.06"
+	"1.06",
+	"1.06c"
 };
 
 static const String:ff2versiondates[][] = 
@@ -156,7 +157,8 @@ static const String:ff2versiondates[][] =
 	"21 April 2012",
 	"29 April 2012",
 	"29 April 2012",
-	"1 May 2012"
+	"1 May 2012",
+	"22 June 2012"
 };
 
 static const maxversion = (sizeof(ff2versiontitles) - 1);
@@ -228,7 +230,7 @@ public OnPluginStart()
 {
 	LogMessage("=== Freak Fortress 2 Initializing - v.%s === ",ff2versiontitles[maxversion]);
 
-	new Handle:cvarVersion = CreateConVar("ff2_version", ff2versiontitles[maxversion], "Freak Fortress 2 Version", FCVAR_REPLICATED|FCVAR_NOTIFY|FCVAR_PLUGIN|FCVAR_SPONLY|FCVAR_DONTRECORD);
+	new Handle:cvarVersion = CreateConVar("ff2_version", PLUGIN_VERSION, "Freak Fortress 2 Version", FCVAR_REPLICATED|FCVAR_NOTIFY|FCVAR_PLUGIN|FCVAR_SPONLY|FCVAR_DONTRECORD);
 	cvarPointType = CreateConVar("ff2_point_type", "0", "Select condition to enable point (0 - alive players, 1 - time)", FCVAR_PLUGIN, true, 0.0, true, 1.0);
 	cvarPointDelay = CreateConVar("ff2_point_delay", "6", "Addition (for each player) delay before point's activation.", FCVAR_PLUGIN);
 	cvarAliveToEnable = CreateConVar("ff2_point_alive", "5", "Enable control points when there are X people left alive.", FCVAR_PLUGIN);
@@ -241,7 +243,7 @@ public OnPluginStart()
 	cvarSpecForceBoss = CreateConVar("ff2_spec_force_boss", "0", "Spectators are allowed in Boss' queue.", FCVAR_PLUGIN, true, 0.0, true, 1.0);
 	
 	cvarHealthBar = CreateConVar("ff2_health_bar", "1", "Show boss health bar", FCVAR_PLUGIN, true, 0.0, true, 1.0); // Added by Powerlord
-	
+
 	HookEvent("player_changeclass", OnChangeClass); // FF2_1.06a (3of7)
 	HookEvent("teamplay_round_start", event_round_start);
 	HookEvent("teamplay_round_win", event_round_end);
@@ -1637,6 +1639,9 @@ public Action:StartRound(Handle:hTimer)
 		EquipBoss(i);
 	}
 	CreateTimer(10.0,Timer_SkipFF2Panel);
+	
+	UpdateHealthBar();
+	
 	return Plugin_Handled;
 }
 
@@ -1678,7 +1683,6 @@ public Action:MessageTimer(Handle:hTimer)
 	new String:s[512];
 	decl String:s2[4];
 	decl String:name[64];
-	
 	for(new i = 0; Boss[i]; i++)
 	{
 		if (!IsValidEdict(Boss[i])) continue;
@@ -1691,20 +1695,6 @@ public Action:MessageTimer(Handle:hTimer)
 			strcopy(s2,2,"");
 		Format(s, 512, "%s\n%t",s,"ff2_start",Boss[i],name,BossHealth[i]-BossHealthMax[i]*(BossLives[i]-1),s2);
 	}
-	
-	if (GetConVarBool(cvarHealthBar))
-	{
-		new healthBar = FindEntityByClassname(-1, HEALTHBAR_CLASS);
-		if (healthBar == -1)
-		{
-			// Shouldn't be necessary, during testing, entity 32 was always monster_resource regardless of settings
-			healthBar = CreateEntityByName(HEALTHBAR_CLASS);
-			DispatchSpawn(healthBar);
-		}
-		
-		SetEntProp(healthBar, Prop_Send, HEALTHBAR_PROPERTY, HEALTHBAR_MAX);
-	}
-	
 	for (new i = 1;  i <= MaxClients;  i++)
 		if (IsValidClient(i) && !(FF2flags[i] & FF2FLAG_HUDDISABLED))
 		{
@@ -1764,7 +1754,7 @@ public OnChangeClass(Handle:event, const String:name[], bool:dontBroadcast)
             TFClassType:oldclass = TF2_GetPlayerClass(iClient), 
             iTeam   = GetClientTeam(iClient); 
      
-    if(iTeam==BossTeam && !b_allowBossChgClass && IsPlayerAlive(iClient))  
+    if(iTeam==BossTeam && !b_allowBossChgClass && IsPlayerAlive(iClient) && GetBossIndex(iClient) !=-1)  
     { 
         PrintToChat(iClient,"\x01\x04[FF2] Do NOT change class when you're a HALE!"); 
         b_BossChgClassDetected = true; 
@@ -1824,6 +1814,7 @@ public Action:MakeBoss(Handle:hTimer,any:index)
 	BossCharge[index][0] = 0.0;
 	SetEntProp(Boss[index], Prop_Data, "m_iMaxHealth",BossHealthMax[index]);
 
+	SetClientQueuePoints(Boss[index], 0);
 	return Plugin_Continue;
 }
 
@@ -3025,8 +3016,9 @@ OnPlayerDeath(client,attacker,bool:fake = false)
 		}
 		if (BossHealth[index] < 0)
 			BossHealth[index] = 0;
-			
+		
 		UpdateHealthBar();
+		
 		CreateTimer(0.5,Timer_RestoreLastClass,GetClientUserId(client));
 		return;
 	}
@@ -3520,7 +3512,6 @@ public Action:OnTakeDamage(client, &attacker, &inflictor, &Float:damage, &damage
 					}
 				}
 				
-				
 				new bool:bIsBackstab = false;
 				if (GetFeatureStatus(FeatureType_Capability, "SDKHook_DmgCustomInOTD") == FeatureStatus_Available) // new way to check backstabs
 				{
@@ -3537,7 +3528,7 @@ public Action:OnTakeDamage(client, &attacker, &inflictor, &Float:damage, &damage
 						bIsBackstab = true;
 					}
 				}
-				
+
 				if (bIsBackstab)
 				{
 					new Float:changedamage = BossHealthMax[index]*(LastBossIndex()+1)*BossLivesMax[index]*(0.12-Stabbed[index]/90);
@@ -3610,7 +3601,6 @@ public Action:OnTakeDamage(client, &attacker, &inflictor, &Float:damage, &damage
 								Damage[healers[i]]+= RoundFloat(changedamage/(healercount+1));
 						}
 					}
-					
 					return Plugin_Changed;
 				}
 			}
@@ -3646,7 +3636,6 @@ public Action:OnTakeDamage(client, &attacker, &inflictor, &Float:damage, &damage
 					}
 				}
 			}
-			
 		}
 		else
 		{
@@ -4623,6 +4612,13 @@ stock FindVersionData(Handle:panel, versionindex)
 {
 	switch (versionindex)
 	{
+		case 9: //1.06c
+		{
+			DrawPanelText(panel, "1) Remove weapons if a player tries to switch classes when they become boss to prevent an exploit..");
+			DrawPanelText(panel, "2) Reset hale's queue points to prevent the 'retry' exploit");
+			DrawPanelText(panel, "3) Better detection of backstabs.");
+			DrawPanelText(panel, "4) Boss now has optional life meter on screen.");
+		}
 		case 8: //1.06
 		{
 			DrawPanelText(panel, "1) Fixed attributes key for weaponN block. Now 1 space needed for explode string.");
