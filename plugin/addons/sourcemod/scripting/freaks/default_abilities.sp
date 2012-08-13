@@ -350,9 +350,11 @@ Charge_OnTeleporter(const String:ability_name[],index,slot,action)
 			GetEntPropVector(target, Prop_Data, "m_vecOrigin", pos);
 			decl String:s[PLATFORM_MAX_PATH];
 			FF2_GetAbilityArgumentString(index,this_plugin_name,ability_name,4,s,128);
-			CreateTimer(3.0, RemoveEnt, EntIndexToEntRef(AttachParticle(Boss,s)));		
-			CreateTimer(3.0, RemoveEnt, EntIndexToEntRef(AttachParticle(Boss,s,_,false)));		
-			
+			if (strlen(s) > 0)
+			{
+				CreateTimer(3.0, RemoveEnt, EntIndexToEntRef(AttachParticle(Boss,s)));		
+				CreateTimer(3.0, RemoveEnt, EntIndexToEntRef(AttachParticle(Boss,s,_,false)));		
+			}
 			if (IsValidEdict(target))
 			{
 				GetEntPropVector(target, Prop_Send, "m_vecOrigin", pos);
@@ -370,8 +372,11 @@ Charge_OnTeleporter(const String:ability_name[],index,slot,action)
 				}
 				else TF2_StunPlayer(Boss, (bEnableSuperDuperJump ? 4.0 : 2.0), 0.0, TF_STUNFLAGS_GHOSTSCARE|TF_STUNFLAG_NOSOUNDOREFFECT, target);
 				TeleportEntity(Boss, pos, NULL_VECTOR, NULL_VECTOR);
-				CreateTimer(3.0, RemoveEnt, EntIndexToEntRef(AttachParticle(Boss, "ghost_appearation")));
-				CreateTimer(3.0, RemoveEnt, EntIndexToEntRef(AttachParticle(Boss, "ghost_appearation", _, false)));
+				if (strlen(s) > 0)
+				{	
+					CreateTimer(3.0, RemoveEnt, EntIndexToEntRef(AttachParticle(Boss, s, _, false)));
+					CreateTimer(3.0, RemoveEnt, EntIndexToEntRef(AttachParticle(Boss, s)));
+				}
 			}
 			if (FF2_RandomSound("sound_ability",s,PLATFORM_MAX_PATH,index,slot))
 			{

@@ -191,8 +191,9 @@ native FF2_GetAbilityArgumentString( index, const String:plugin_name[], const St
  * @param length		Length of "str" buffer
  * @param index			Index of boss (0, as usual, but, for example, companion like Seeldier has 1)
  * @param slot			Only for "sound_ability": slot of ability.
+ * @return				true if sound has been found. false if not
  */
-native FF2_RandomSound( const String: keyvalue[], String: str[], length, index = 0, slot = 0 );
+native bool:FF2_RandomSound( const String: keyvalue[], String: str[], length, index = 0, slot = 0 );
 
 /**
  * Stops boss' music for all players
@@ -270,7 +271,7 @@ native FF2_SetQueuePoints( client, value );
  *							3 - on use
  * @return		    	Plugin_Stop can not preve Ability. Use FF2_PreAbility with return Plugin_Stop
  */
-forward Action:FF2_PreAbility( index, const String:plugin_name[], const String:ability_name[], action );
+forward FF2_PreAbility( index, const String:plugin_name[], const String:ability_name[], action );
 forward Action:FF2_OnAbility( index, const String:plugin_name[], const String:ability_name[], action );
 
 /**
@@ -299,7 +300,6 @@ forward Action:FF2_OnMusic( String:path[], &Float:time );
  * @param index 		Index of boss (0, as usual, but, for example, companion like Seeldier has 1)
  * @param SpecialNum	Number of Special
  * @param SpecialName	Name of Special ("Vagineer", "Ninja Spy" etc)
- * @param length		Length of SpecialName string
  * @return		    	You can NOT use Plugin_Stop to prevent this, but
  *							you can change SpecialName and use Plugin_Changed to change Special;
  *							if you want to change SpecialNum, then set SpecialName to null string ("").
@@ -314,6 +314,17 @@ forward Action:FF2_OnSpecialSelected( index, &SpecialNum, String:SpecialName[]);
  * @return		    	Plugin_Stop will prevent this (do you really need it?), Plugin_Changed will change it;
  */
 forward Action:FF2_OnAddQueuePoints( add_points[MAXPLAYERS+1] );
+
+/**
+ * Begins when FF2 picks Character Set for map
+ *
+ * @param CharSetNum	Number of Special
+ * @param CharSetName	Name of Special ("Vagineer", "Ninja Spy" etc)
+ * @return		    	You can NOT use Plugin_Stop to prevent this, but
+ *							you can change CharSetName and use Plugin_Changed to change Special;
+ *							if you want to change CharSetNum, then set CharSetName to null string ("").
+ */
+forward Action:FF2_OnLoadCharacterSet( CharSetNum, String:CharSetName[] );
 
 public SharedPlugin:__pl_FF2 =
 {
