@@ -29,6 +29,7 @@ new Handle:OnHaleRage = INVALID_HANDLE;
 //new Handle:chargeHUD;
 new Handle:cvarTimeScale;
 new Handle:cvarCheats;
+new Handle:cvarKAC;
 new BossTeam=_:TFTeam_Blue;
 
 public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
@@ -49,7 +50,8 @@ public OnPluginStart2()
 	//LoadTranslations("freak_fortress_2.phrases");
 	
 	cvarTimeScale = FindConVar("host_timescale");
-	cvarCheats=FindConVar("sv_cheats");
+	cvarCheats = FindConVar("sv_cheats");
+	cvarKAC = FindConVar("kac_enable");
 }
 
 public OnMapStart()
@@ -84,6 +86,8 @@ public Action:event_round_end(Handle:event, const String:name[], bool:dontBroadc
 
 public Action:Timer_GetBossTeam(Handle:hTimer)
 {
+	if (cvarKAC && GetConVarBool(cvarKAC))
+		SetConVarBool(cvarKAC,false);
 	BossTeam=FF2_GetBossTeam();
 	return Plugin_Continue;
 }

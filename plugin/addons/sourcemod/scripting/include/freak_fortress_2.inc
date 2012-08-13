@@ -58,12 +58,15 @@ native FF2_GetBossTeam();
 /**
  * Gets character name of current Boss
  *
- * @param index 		Index of boss (0, as usual, but companion like Seeldier has 1)
- * @param buffer 		Buffer for boss' character name
- * @param bufferlen		Length of buffer string
- * @return		    	Number of special
+ * @param index 			Index of boss (0, as usual, but companion like Seeldier has 1)
+ * @param buffer 			Buffer for boss' character name
+ * @param bufferlen			Length of buffer string
+ * @param isNumOfSpecial	0 - "index" parameter means index of current boss (0 - player-Seeman, 1 - player-Seeldier, etc.).
+ *							1 - "index" means number of special (1 - Saxton's config. 2 - Vagineer's config, etc.)
+ *								Don't forget: 1st chatacter from chatacters.cfg is _0th_ here
+ * @return		    		true if Special exists, false if not
  */
-native FF2_GetBossSpecial( index = 0, String:buffer[], bufferlen);
+native bool:FF2_GetBossSpecial( index = 0, String:buffer[], bufferlen, isNumOfSpecial = 0);
 
 /**
  * Gets Max Health of current Boss
@@ -119,11 +122,29 @@ native Float:FF2_GetRageDist( index = 0 , const String:plugin_name[]="", const S
  *
  * @param index 		Index of boss (0, as usual, but, for example, companion like Seeldier has 1)
  * @param plugin_name	Name of plugin with this ability
- * @param ability_name 	Name of ability
- 
+ * @param ability_name 	Name of ability 
  * @return				true if Boss has this ability. false is hasn't
  */
 native bool:FF2_HasAbility( index, const String:plugin_name[], const String:ability_name[] );
+
+/**
+ * Is Boss has ability?
+ *
+ * @param index 		Index of boss (0, as usual, but, for example, companion like Seeldier has 1)
+ * @param plugin_name	Name of plugin with this ability
+ * @param ability_name 	Name of ability
+ * @param slot			Slot of charge meter
+ *							0 - rage
+ *							1 - as usual, used for brave jump or teleport
+ *							0 - other charged abilities 
+ * @param buttonmode	There is 2 buttonmodes today:
+ *							0 - by taunt
+ *							1 - by right mouse button or duck
+ *							2 - by reload button
+ * @noreturn
+ */
+native FF2_DoAbility(index, const String:plugin_name[], const String:ability_name[], slot, buttonmode = 0);
+
 
 /**
  * Gets integer argument of ability
@@ -184,10 +205,13 @@ native FF2_StopMusic( client = 0 );
 /**
  * Gets keyvalues handle of Boss
  *
- * @param index			Index of Boss (0, as usual, but, for example, companion like Seeldier has 1)
- * @return				Handle of Boss' keyvalues
+ * @param index				Index of Boss (0, as usual, but, for example, companion like Seeldier has 1)
+ * @param isNumOfSpecial	0 - "index" parameter means index of current boss (0 - player-Seeman, 1 - player-Seeldier, etc.).
+ *							1 - "index" means number of special (1 - Saxton's config. 2 - Vagineer's config, etc.)
+ *								Don't forget: 1st chatacter from chatacters.cfg is _0th_ here
+ * @return					Handle of Boss' keyvalues
  */
-native Handle:FF2_GetSpecialKV( index );
+native Handle:FF2_GetSpecialKV( index , isNumOfSpecial = 0);
 
 /**
  * Gets client's flags for FF2 
@@ -207,8 +231,30 @@ native FF2_GetFF2flags( client );
 native FF2_SetFF2flags( index, flags );
 
 /**
+ * Gets client's queue points
+ *
+ * @param index			Client's index
+ * @return				Client's queue points
+ */
+native FF2_GetQueuePoints( client );
+
+/**
+ * Sets client's queue points
+ *
+ * @param index			Client's index
+ * @param value			New value of client's queue points.
+ * @noreturn
+ */
+native FF2_SetQueuePoints( client, value );
+
+/**
+ * FF2_OnAbility:
  * Begins when Boss uses ability (stun rage,jump,uber rage etc)
  * Calls each 0.2 seconds for charge abilities
+ * Begins when Boss uses ability (stun rage,jump,uber rage etc)
+ * Calls each 0.2 seconds for charge abilities
+ *
+ * Use FF2_PreAbility with return Plugin_Stop to prevent FF2_OnAbility only!
  *
  * @param index 		Index of boss (0, as usual, but, for example, companion like Seeldier has 1)
  * @param plugin_name	Name of plugin with this ability
@@ -222,8 +268,9 @@ native FF2_SetFF2flags( index, flags );
  *							1 - on charging
  *							2 - is charged
  *							3 - on use
- * @return		    	Plugin_Stop will prevent Ability;
+ * @return		    	Plugin_Stop can not preve Ability. Use FF2_PreAbility with return Plugin_Stop
  */
+forward Action:FF2_PreAbility( index, const String:plugin_name[], const String:ability_name[], action );
 forward Action:FF2_OnAbility( index, const String:plugin_name[], const String:ability_name[], action );
 
 /**
@@ -300,5 +347,7 @@ public __pl_FF2_SetNTVOptional()
 	MarkNativeAsOptional("FF2_RandomSound");	
 	MarkNativeAsOptional("FF2_StopMusic");	
 	MarkNativeAsOptional("FF2_GetSpecialKV");		
+	MarkNativeAsOptional("FF2_GetQueuePoints");		
+	MarkNativeAsOptional("FF2_SetQueuePoints");		
 }
 #endif

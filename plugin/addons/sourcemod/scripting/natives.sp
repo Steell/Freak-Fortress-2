@@ -70,6 +70,14 @@ public Action:SayCmd(client, args)
 	{
 		PrintToChatAll("flags - %i",FF2_GetFF2flags(0));
 	}
-	
+	if (!strcmp(CurrentChat, "\"9\""))
+	{
+		FF2_DoAbility(0, "default_abilities", "rage_stun", 0, 0);
+	}
 	return Plugin_Continue;	
+}
+
+public Action:FF2_PreAbility( index, const String:plugin_name[], const String:ability_name[], action )
+{
+	return Plugin_Stop;
 }

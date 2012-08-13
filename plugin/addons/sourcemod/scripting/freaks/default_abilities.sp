@@ -131,7 +131,7 @@ public Action:FF2_OnAbility2(index,const String:plugin_name[],const String:abili
 			pingas++;
 			target=GetRandomInt(1,MaxClients);
 			if (pingas==100)
-				break;
+				return Plugin_Continue;
 		}
 		while (RedAlivePlayers && (!IsValidEdict(target) || (GetClientTeam(target)==BossTeam) || !IsPlayerAlive(target)));
 		
@@ -221,19 +221,25 @@ Charge_OnBraveJump(index,slot,action)
 	{
 		case 1:
 		{
-			SetHudTextParams(-1.0, 0.88, 0.15, 255, 255, 255, 255);
-			ShowSyncHudText(Boss, jumpHUD, "%t","jump_status_2",-RoundFloat(charge));
+			if (!(FF2_GetFF2flags(Boss) & FF2FLAG_HUDDISABLED))
+			{
+				SetHudTextParams(-1.0, 0.88, 0.15, 255, 255, 255, 255);
+				ShowSyncHudText(Boss, jumpHUD, "%t","jump_status_2",-RoundFloat(charge));
+			}
 		}
 		case 2:
 		{
-			SetHudTextParams(-1.0, 0.88, 0.15, 255, 255, 255, 255);
-			if (bEnableSuperDuperJump[index])
+			if (!(FF2_GetFF2flags(Boss) & FF2FLAG_HUDDISABLED))
 			{
-				SetHudTextParams(-1.0, 0.88, 0.15, 255, 64, 64, 255);
-				ShowSyncHudText(Boss, jumpHUD,"%t","super_duper_jump");
-			}	
-			else
-				ShowSyncHudText(Boss, jumpHUD, "%t","jump_status",RoundFloat(charge));
+				SetHudTextParams(-1.0, 0.88, 0.15, 255, 255, 255, 255);
+				if (bEnableSuperDuperJump[index])
+				{
+					SetHudTextParams(-1.0, 0.88, 0.15, 255, 64, 64, 255);
+					ShowSyncHudText(Boss, jumpHUD,"%t","super_duper_jump");
+				}	
+				else
+					ShowSyncHudText(Boss, jumpHUD, "%t","jump_status",RoundFloat(charge));
+			}
 		}
 		case 3:
 		{
@@ -290,13 +296,19 @@ Charge_OnTeleporter(const String:ability_name[],index,slot,action)
 	{
 		case 1:
 		{
-			SetHudTextParams(-1.0, 0.88, 0.15, 255, 255, 255, 255);
-			ShowSyncHudText(Boss, jumpHUD, "%t","teleport_status_2",-RoundFloat(charge));
+			if (!(FF2_GetFF2flags(Boss) & FF2FLAG_HUDDISABLED))
+			{
+				SetHudTextParams(-1.0, 0.88, 0.15, 255, 255, 255, 255);
+				ShowSyncHudText(Boss, jumpHUD, "%t","teleport_status_2",-RoundFloat(charge));
+			}
 		}	
 		case 2:
 		{
-			SetHudTextParams(-1.0, 0.88, 0.15, 255, 255, 255, 255);
-			ShowSyncHudText(Boss, jumpHUD, "%t","teleport_status",RoundFloat(charge));
+			if (!(FF2_GetFF2flags(Boss) & FF2FLAG_HUDDISABLED))
+			{
+				SetHudTextParams(-1.0, 0.88, 0.15, 255, 255, 255, 255);
+				ShowSyncHudText(Boss, jumpHUD, "%t","teleport_status",RoundFloat(charge));
+			}
 		}
 		case 3:
 		{

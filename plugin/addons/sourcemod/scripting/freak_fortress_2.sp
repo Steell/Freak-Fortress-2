@@ -20,7 +20,7 @@
 #define ME 2048
 #define MAXSPECIALS 64
 #define MAXRANDOMS 16
-#define PLUGIN_VERSION "1.01"
+#define PLUGIN_VERSION "1.02"
 
 #define SOUNDEXCEPT_MUSIC 0
 #define SOUNDEXCEPT_VOICE 1
@@ -128,19 +128,22 @@ new bool:isSubPluginsEnabled;
 static const String:ff2versiontitles[][] = 		//the last line of this is what determines the displayed plugin version
 {
 	"1.0",
-	"1.01"
+	"1.01",
+	"1.02"
 };
 
 static const String:ff2versiondates[][] = 
 {
 	"6 April 2012",
-	"14 April 2012"
+	"14 April 2012",
+	"17 April 2012"
 };
 
 static const maxversion = (sizeof(ff2versiontitles) - 1);
 
 new Specials = 0;
 new Handle:BossKV[MAXSPECIALS];
+new Handle:PreAbility;
 new Handle:OnAbility;
 new Handle:OnMusic;
 new Handle:OnTriggerHurt;
@@ -176,13 +179,17 @@ public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
 	CreateNative("FF2_StopMusic",Native_StopMusic);
 	CreateNative("FF2_GetRageDist",Native_GetRageDist);
 	CreateNative("FF2_HasAbility",Native_HasAbility); 	
+	CreateNative("FF2_DoAbility",Native_DoAbility); 	
 	CreateNative("FF2_GetAbilityArgument",Native_GetAbilityArgument); 	
 	CreateNative("FF2_GetAbilityArgumentFloat",Native_GetAbilityArgumentFloat); 	
 	CreateNative("FF2_GetAbilityArgumentString",Native_GetAbilityArgumentString); 	
 	CreateNative("FF2_RandomSound",Native_RandomSound);
 	CreateNative("FF2_GetFF2flags",Native_GetFF2flags);
 	CreateNative("FF2_SetFF2flags",Native_SetFF2flags);
+	CreateNative("FF2_GetQueuePoints",Native_GetQueuePoints);
+	CreateNative("FF2_SetQueuePoints",Native_SetQueuePoints);
 	
+	PreAbility = CreateGlobalForward("FF2_PreAbility",ET_Hook,Param_Cell,Param_String,Param_String,Param_Cell);
 	OnAbility = CreateGlobalForward("FF2_OnAbility",ET_Hook,Param_Cell,Param_String,Param_String,Param_Cell);
 	OnMusic = CreateGlobalForward("FF2_OnMusic", ET_Hook, Param_String, Param_FloatByRef);
 	OnTriggerHurt = CreateGlobalForward("FF2_OnTriggerHurt",ET_Hook,Param_Cell,Param_Cell,Param_FloatByRef);
@@ -777,7 +784,6 @@ public Action:event_round_start(Handle:event, const String:name[], bool:dontBroa
 	EnableSubPlugins();
 
 	CheckArena();
-	PickSpecial(0,0);
 	
 	new bool:see[MAXPLAYERS + 1];
 	for (new i = 1; i <= MaxClients; i++)
@@ -816,11 +822,10 @@ public Action:event_round_start(Handle:event, const String:name[], bool:dontBroa
 	see[0]=false;
 	see[1]=false;
 	for(new i = 0; i <= MaxClients; i++)
-	{
 		Boss[i] = 0;
-	}
 	decl String:s[64];
 	Boss[0] = FindBosses(see);
+	PickSpecial(0,0);
 	see[Boss[0]] = true;
 	KvRewind(BossKV[Special[0]]);
 	BossLivesMax[0] = KvGetNum(BossKV[Special[0]], "lives",1);
@@ -834,9 +839,9 @@ public Action:event_round_start(Handle:event, const String:name[], bool:dontBroa
 			KvGetString(BossKV[Special[i-1]], "companion", s, 64);
 			if (StrEqual(s,""))
 				break;
+			Boss[i] = FindBosses(see);
 			if (PickSpecial(i,i-1))
 			{
-				Boss[i] = FindBosses(see);
 				KvRewind(BossKV[Special[i]]);
 				for (new pingas = 0; Boss[i] == Boss[i-1] && pingas < 100; pingas++)
 					Boss[i] = FindBosses(see);
@@ -846,10 +851,13 @@ public Action:event_round_start(Handle:event, const String:name[], bool:dontBroa
 				if (LastClass[Boss[i]] == TFClass_Unknown)
 					LastClass[Boss[i]] = TF2_GetPlayerClass(Boss[i]);
 			}
+			else
+				Boss[i] = 0;
 		}
+	CreateTimer(0.2,Timer_GogoBoss);
 	CreateTimer(9.1, StartBossTimer);
 	CreateTimer(3.5, StartResponceTimer);
-	CreateTimer(9.6, MessageTimer,9001);
+	CreateTimer(9.6, MessageTimer);
 
 	decl ent2;
 	decl Float:pos[3];
@@ -871,7 +879,6 @@ public Action:event_round_start(Handle:event, const String:name[], bool:dontBroa
 			DispatchSpawn(ent2);
 		}
 	}
-	CreateTimer(0.2,Timer_GogoBoss);
 	healthcheckused = 0;
 	return Plugin_Continue;
 }
@@ -924,6 +931,8 @@ public Action:BossInfoTimer_showinfo(Handle:hTimer,any:index)
 		BossInfoTimer[index][1]=INVALID_HANDLE;
 		return Plugin_Stop;
 	}
+	if (FF2flags[Boss[index]] & FF2FLAG_HUDDISABLED)
+		return Plugin_Stop;
 	
 	new bool:see;
 	for(new n = 1; ; n++)
@@ -1523,7 +1532,7 @@ public Action:Timer_SkipFF2Panel(Handle:hTimer)
 	while (i < 3 && j <= MaxClients);
 }
 
-public Action:MessageTimer(Handle:hTimer,any:client)
+public Action:MessageTimer(Handle:hTimer)
 {
 	if (FF2RoundState!= 1)
 		return Plugin_Continue;
@@ -1545,6 +1554,8 @@ public Action:MessageTimer(Handle:hTimer,any:client)
 	decl String:name[64];
 	for(new i = 0; Boss[i]; i++)
 	{
+		if (!IsValidEdict(Boss[i])) continue;
+		CreateTimer(0.1,MakeBoss,i);
 		KvRewind(BossKV[Special[i]]);
 		KvGetString(BossKV[Special[i]], "name",name, 64," = Failed name = ");
 		if (BossLives[i] > 1)
@@ -1596,7 +1607,7 @@ EquipBoss(index)
 				SetEntProp(BossWeapon, Prop_Send, "m_iWorldModelIndex", -1);
 			SetEntPropEnt(Boss[index], Prop_Send, "m_hActiveWeapon",BossWeapon);
 			KvGoBack(BossKV[Special[index]]);
-			new TFClassType:tclass = TFClassType:KvGetNum(BossKV[Special[index]], "class",0);
+			new TFClassType:tclass = TFClassType:KvGetNum(BossKV[Special[index]], "class",1);
 			if (TF2_GetPlayerClass(Boss[index])!= tclass)
 				TF2_SetPlayerClass(Boss[index], tclass);
 		}
@@ -1610,7 +1621,7 @@ public Action:MakeBoss(Handle:hTimer,any:index)
 	if (!Boss[index] || !IsValidEdict(Boss[index]) || !IsClientInGame(Boss[index]))
 		return Plugin_Continue;
 	KvRewind(BossKV[Special[index]]);
-	TF2_SetPlayerClass(Boss[index], TFClassType:KvGetNum(BossKV[Special[index]], "class",0));
+	TF2_SetPlayerClass(Boss[index], TFClassType:KvGetNum(BossKV[Special[index]], "class",1));
 	if (GetClientTeam(Boss[index]) != BossTeam)
 	{
 		SetEntProp(Boss[index], Prop_Send, "m_lifeState", 2);
@@ -2001,15 +2012,20 @@ public Action:event_destroy(Handle:event, const String:name[], bool:dontBroadcas
 
 public Action:event_changeclass(Handle:event, const String:name[], bool:dontBroadcast)
 {
-	if (!Enabled)
-		return Plugin_Continue;
-	new client = GetClientOfUserId(GetEventInt(event, "userid"));
+	if (Enabled)
+		CreateTimer(0.1,Timer_changeclass,GetEventInt(event, "userid"));
+	return Plugin_Continue;
+}
+
+public Action:Timer_changeclass(Handle:hTimer,any:userid)
+{
+	new client = GetClientOfUserId(userid);
 	new index = GetBossIndex(client);
-	if (index!= -1)
+	if (index != -1)
 	{
 		KvRewind(BossKV[Special[index]]);
 		new TFClassType:tclass = TFClassType:KvGetNum(BossKV[Special[index]], "class",0);
-		if (TF2_GetPlayerClass(client)!= tclass)
+		if (TF2_GetPlayerClass(client) != tclass)
 			TF2_SetPlayerClass(client, tclass);
 	}
 	return Plugin_Continue;
@@ -2152,14 +2168,11 @@ public Action:Command_MakeNextSpecial(client, args)
 			ReplyToCommand(client, "[FF2] Set the next Special to %s", Special_Name);
 			return Plugin_Handled;
 		}
-	}
-	for (i = 0; i < Specials; i++)
-	{
-		KvRewind(BossKV[i]);
 		KvGetString(BossKV[i], "filename",Special_Name, 64);
 		if (StrContains(Special_Name,arg,false) >= 0)
 		{
 			Incoming[0] = i;
+			KvGetString(BossKV[i], "name",Special_Name, 64);
 			ReplyToCommand(client, "[FF2] Set the next Special to %s", Special_Name);
 			return Plugin_Handled;
 		}
@@ -2563,26 +2576,29 @@ public Action:BossTimer(Handle:hTimer)
 			BossHealth[index] = 1;
 		SetBossHealthFix(Boss[index], BossHealth[index]);
 	
-		SetHudTextParams(-1.0, 0.77, 0.15, 255, 255, 255, 255);
-		ShowSyncHudText(Boss[index], healthHUD, "%t","health",BossHealth[index]-BossHealthMax[index]*(BossLives[index]-1),BossHealthMax[index]);
-		if (RoundFloat(BossCharge[index][0]) == 100)
+		if (!(FF2flags[Boss[index]] & FF2FLAG_HUDDISABLED))
 		{
-			if (IsFakeClient(Boss[index]) && !(FF2flags[Boss[index]] & FF2FLAG_BOTRAGE))
+			SetHudTextParams(-1.0, 0.77, 0.15, 255, 255, 255, 255);
+			ShowSyncHudText(Boss[index], healthHUD, "%t","health",BossHealth[index]-BossHealthMax[index]*(BossLives[index]-1),BossHealthMax[index]);
+			if (RoundFloat(BossCharge[index][0]) == 100)
 			{
-				CreateTimer(1.0, Timer_BotRage,index, TIMER_FLAG_NO_MAPCHANGE);
-				FF2flags[Boss[index]] |= FF2FLAG_BOTRAGE;
+				if (IsFakeClient(Boss[index]) && !(FF2flags[Boss[index]] & FF2FLAG_BOTRAGE))
+				{
+					CreateTimer(1.0, Timer_BotRage,index, TIMER_FLAG_NO_MAPCHANGE);
+					FF2flags[Boss[index]] |= FF2FLAG_BOTRAGE;
+				}
+				else
+				{
+					SetHudTextParams(-1.0, 0.83, 0.15, 255, 64, 64, 255);
+					ShowSyncHudText(Boss[index], rageHUD,"%t","do_rage");
+				}
 			}
 			else
 			{
-				SetHudTextParams(-1.0, 0.83, 0.15, 255, 64, 64, 255);
-				ShowSyncHudText(Boss[index], rageHUD,"%t","do_rage");
-			}
+				SetHudTextParams(-1.0, 0.83, 0.15, 255, 255, 255, 255);
+				ShowSyncHudText(Boss[index], rageHUD,"%t","rage_meter",RoundFloat(BossCharge[index][0]));
+			}	
 		}
-		else
-		{
-			SetHudTextParams(-1.0, 0.83, 0.15, 255, 255, 255, 255);
-			ShowSyncHudText(Boss[index], rageHUD,"%t","rage_meter",RoundFloat(BossCharge[index][0]));
-		}	
 		SetHudTextParams(-1.0, 0.88, 0.15, 255, 255, 255, 255);
 		
 		if (GlowTimer[index] <= 0.0)
@@ -3922,10 +3938,6 @@ public bool:PickSpecial(index,index2)
 				Special[index] = i;
 				break;
 			}
-		}
-		for(i = 0; i < Specials; i++)
-		{
-			KvRewind(BossKV[i]);
 			KvGetString(BossKV[i], "filename", s1, 64," = Failed name1 = ");
 			if (!strcmp(s1,s2,false))
 			{
@@ -3962,7 +3974,7 @@ public bool:PickSpecial(index,index2)
 				}
 			}
 		}		
-		Special[index]=SpecialNum-1;
+		Special[index]=SpecialNum;
 		return true;
 	}
 	return true;
@@ -4322,7 +4334,17 @@ stock FindVersionData(Handle:panel, versionindex)
 {
 	switch (versionindex)
 	{
-		case 1: //1.1
+		case 2: //1.02
+		{
+			DrawPanelText(panel, "1) Added isNumOfSpecial parameter into FF2_GetSpecialKV and FF2_GetBossSpecial natives");
+			DrawPanelText(panel, "2) Added FF2_PreAbility forward. Plz use it to prevent FF2_OnAbility only.");
+			DrawPanelText(panel, "3) Added FF2_DoAbility native.");
+			DrawPanelText(panel, "4) Fixed exploit about queue points...ow wait, it done in 1.01");
+			DrawPanelText(panel, "5) ff2_1st_set_abilities.ff2 sets kac_enabled to 0.");
+			DrawPanelText(panel, "6) FF2FLAG_HUDDISABLED flag disables Boss' HUD too.");
+			DrawPanelText(panel, "7) Added FF2_GetQueuePoints and FF2_SetQueuePoints natives.");
+		}
+		case 1: //1.01
 		{
 			DrawPanelText(panel, "1) Fixed \"classmix\" bug associated with Boss' class restoring.");
 			DrawPanelText(panel, "3) Fixed other little bugs.");
@@ -4472,6 +4494,7 @@ public Action:MusicTogglePanelCmd(client, args)
 	MusicTogglePanel(client);
 	return Plugin_Handled;
 }
+
 public Action:MusicTogglePanel(client)
 {
 	if (!Enabled || !IsValidClient(client)) 
@@ -4528,6 +4551,7 @@ public Action:VoiceTogglePanel(client)
 	CloseHandle(panel);
 	return Plugin_Continue;
 }
+
 public VoiceTogglePanelH(Handle:menu, MenuAction:action, param1, param2)
 {
 	if (IsValidClient(param1))
@@ -4741,9 +4765,23 @@ stock SetBossHealthFix(client, oldhealth)
 	SetEntProp(client, Prop_Send, "m_iHealth", originalhealth);
 }
 
-UseAbility(const String:ability_name[],const String:plugin_name[],index,slot,buttonmode = 0)
+UseAbility(const String:ability_name[],const String:plugin_name[], index, slot, buttonmode = 0)
 {
 	new Action:act = Plugin_Continue;
+	Call_StartForward(PreAbility);
+	Call_PushCell(index);
+	Call_PushString(plugin_name);
+	Call_PushString(ability_name);
+	Call_PushCell(slot);
+	Call_Finish(act);
+
+	switch (act)
+	{
+		case Plugin_Stop, Plugin_Handled:
+			return;
+	}
+	
+	act = Plugin_Continue;
 	Call_StartForward(OnAbility);
 	Call_PushCell(index);
 	Call_PushString(plugin_name);
@@ -4870,9 +4908,26 @@ public Native_GetSpecial(Handle:plugin,numParams)
 	new index = GetNativeCell(1);
 	new dstrlen = GetNativeCell(3);
 	decl String:s[dstrlen];
-	KvRewind(BossKV[Special[index]]);
-	KvGetString( BossKV[Special[index]], "name", s, dstrlen);
-	SetNativeString(2, s,dstrlen);
+	//if (isNumOfSpecial)
+	new see=GetNativeCell(4);
+	if (see)
+	{
+		if (index<0) return false;
+		if (!BossKV[index]) return false;
+		KvRewind(BossKV[index]);
+		KvGetString(BossKV[index], "name", s, dstrlen);
+		SetNativeString(2, s,dstrlen);
+	}
+	else
+	{
+		if (index<0) return false;
+		if (Special[index]<0) return false;
+		if (!BossKV[Special[index]]) return false;
+		KvRewind(BossKV[Special[index]]);
+		KvGetString(BossKV[Special[index]], "name", s, dstrlen);
+		SetNativeString(2, s,dstrlen);
+	}
+	return true;
 }
 
 public Native_GetHealth(Handle:plugin,numParams)
@@ -4914,6 +4969,7 @@ public Native_GetRageDist(Handle:plugin,numParams)
 	decl String:ability_name[64]; 	
 	GetNativeString(3,ability_name,64);
 
+	if (!BossKV[Special[index]]) return _:0.0;
 	KvRewind(BossKV[Special[index]]);
 	decl Float:see;
 	if (!ability_name[0])
@@ -4941,7 +4997,7 @@ public Native_GetRageDist(Handle:plugin,numParams)
 			return _:see;
 		}
 	}
-	return 0;
+	return _:0.0;
 }
 
 public Native_HasAbility(Handle:plugin,numParams)
@@ -4952,6 +5008,17 @@ public Native_HasAbility(Handle:plugin,numParams)
 	GetNativeString(3,ability_name,64);
 	//return HasAbility(index,plugin_name,ability_name);
 	return HasAbility(GetNativeCell(1),plugin_name,ability_name);
+}
+
+//native FF2_DoAbility(index, const String:plugin_name[], const String:ability_name[], slot, buttonmode = 0)
+public Native_DoAbility(Handle:plugin,numParams)
+{
+	decl String:plugin_name[64]; 	
+	decl String:ability_name[64]; 	
+	GetNativeString(2,plugin_name,64);
+	GetNativeString(3,ability_name,64);
+	//UseAbility(const String:ability_name[],const String:plugin_name[], index, slot, buttonmode = 0)
+	UseAbility(ability_name,plugin_name, GetNativeCell(1), GetNativeCell(4), GetNativeCell(5));
 }
 
 public Native_GetAbilityArgument(Handle:plugin,numParams)
@@ -5005,13 +5072,37 @@ public Native_SetFF2flags(Handle:plugin,numParams)
 	FF2flags[GetNativeCell(1)]=GetNativeCell(2);
 }
 
+public Native_GetQueuePoints(Handle:plugin,numParams)
+{
+	return GetClientQueuePoints(GetNativeCell(1));
+}
+
+public Native_SetQueuePoints(Handle:plugin,numParams)
+{
+	SetClientQueuePoints(GetNativeCell(1),GetNativeCell(2));
+}
+
 public Native_GetSpecialKV(Handle:plugin,numParams)
 {
 	new index = GetNativeCell(1);
-	if (index!= -1 && index < MaxClients+1 && Special[index]!= -1 && Special[index] < MAXSPECIALS)
+	new bool:isNumOfSpecial = bool:GetNativeCell(2);
+	if (isNumOfSpecial)
 	{
-		KvRewind(BossKV[Special[index]]);
-		return _:BossKV[Special[index]];
+		if (index!= -1 && index < MAXSPECIALS)
+		{
+			if (BossKV[index] != INVALID_HANDLE)
+				KvRewind(BossKV[index]);
+			return _:BossKV[index];
+		}
+	}
+	else
+	{
+		if (index!= -1 && index < MaxClients+1 && Special[index]!= -1 && Special[index] < MAXSPECIALS)
+		{
+			if (BossKV[Special[index]] != INVALID_HANDLE)
+				KvRewind(BossKV[Special[index]]);
+			return _:BossKV[Special[index]];
+		}
 	}
 	return _:INVALID_HANDLE; 	
 }
@@ -5023,6 +5114,7 @@ public Native_StartMusic(Handle:plugin,numParams)
 
 public Native_StopMusic(Handle:plugin,numParams)
 {
+	if (!BossKV[Special[0]]) return;
 	KvRewind(BossKV[Special[0]]);
 	if (KvJumpToKey(BossKV[Special[0]],"sound_bgm"))
 	{	
