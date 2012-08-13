@@ -29,6 +29,7 @@
 #define HEALTHBAR_PROPERTY "m_iBossHealthPercentageByte"
 #define HEALTHBAR_MAX 255
 
+new chkFirstHale;
 new bool:b_allowBossChgClass = false; 		// FF2_1.06a (1of7)
 new bool:b_BossChgClassDetected = false; 	// FF2_1.06a (2of7)
 new OtherTeam=2;
@@ -354,6 +355,7 @@ public OnConfigsExecuted()
 
 public OnMapStart()
 {
+	chkFirstHale = 0;
 	MusicTimer = INVALID_HANDLE;
 	RoundCounter = 0;
 	doorchecktimer = INVALID_HANDLE;
@@ -1815,7 +1817,30 @@ public Action:MakeBoss(Handle:hTimer,any:index)
 	SetEntProp(Boss[index], Prop_Data, "m_iMaxHealth",BossHealthMax[index]);
 
 	SetClientQueuePoints(Boss[index], 0);
+	if(RoundCount==0&&chkFirstHale==0)
+		cFH(Boss[index]);
+
 	return Plugin_Continue;
+}
+
+public cFH(any:i)
+{
+	CreateTimer(3.0,checkFirstHale,i);
+}
+
+public Action:checkFirstHale(Handle:timer, any:i)
+{
+	new TFClassType:oldclass = TF2_GetPlayerClass(i);
+	PrintToChat(i,"\x01\x04[FF2] First-round Hale Bug Check!");
+	b_allowBossChgClass = true;
+	ForcePlayerSuicide(i);
+	if(oldclass==TFClass_Spy)
+		TF2_SetPlayerClass(i, TFClass_Soldier);
+	else
+		TF2_SetPlayerClass(i, TFClass_Spy);
+	b_allowBossChgClass = false;
+	PrintToChat(i,"\x01\x04[FF2] We'll fix you up when the game starts.");
+	chkFirstHale++;
 }
 
 public Action:TF2Items_OnGiveNamedItem(client, String:classname[], iItemDefinitionIndex, &Handle:hItem)
