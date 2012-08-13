@@ -20,7 +20,7 @@
 #define ME 2048
 #define MAXSPECIALS 64
 #define MAXRANDOMS 16
-#define PLUGIN_VERSION "1.06c"
+#define PLUGIN_VERSION "1.06d"
 
 #define SOUNDEXCEPT_MUSIC 0
 #define SOUNDEXCEPT_VOICE 1
@@ -5701,6 +5701,10 @@ public OnEntityCreated(entity, const String:classname[])
 		return;
 	}
 
+	if (StrEqual(classname, HEALTHBAR_CLASS))
+	{
+		g_healthBar = entity;
+	}
 	if (g_Monoculus == -1 && StrEqual(classname, MONOCULUS))
 	{
 		g_Monoculus = entity;
@@ -5714,11 +5718,7 @@ public OnEntityDestroyed(entity)
 		return;
 	}
 	
-	if (entity == g_healthBar)
-	{
-		g_healthBar = CreateEntityByName(HEALTHBAR_CLASS, entity);
-	}
-	else if (entity == g_Monoculus)
+	if (entity == g_Monoculus)
 	{
 		g_Monoculus = FindEntityByClassname(-1, MONOCULUS);
 		if (g_Monoculus == entity)
