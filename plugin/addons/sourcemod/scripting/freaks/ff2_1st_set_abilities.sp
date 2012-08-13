@@ -167,7 +167,8 @@ Rage_CloneAttack(const String:ability_name[],index)
 	for(new client=1;client<=MaxClients;client++)
 		if (IsValidEdict(client) && IsClientConnected(client) && !IsPlayerAlive(client) && GetClientTeam(client)>_:TFTeam_Spectator)
 		{
-			LastClass[client] = TF2_GetPlayerClass(client);
+			if (LastClass[client] == TFClass_Unknown)
+				LastClass[client] = TF2_GetPlayerClass(client);
 			FF2_SetFF2flags(client,FF2_GetFF2flags(client)|FF2FLAG_ALLOWSPAWNINBOSSTEAM);
 			ChangeClientTeam(client, BossTeam);
 			TF2_RespawnPlayer(client);

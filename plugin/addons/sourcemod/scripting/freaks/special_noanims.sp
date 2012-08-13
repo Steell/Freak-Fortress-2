@@ -5,7 +5,7 @@
 //						arg1 - weapon's classname
 //						arg2 - weapon's index
 //						arg3 - weapon's attributes
-//						arg4 - weapon's slot
+//						arg4 - weapon's slot (0 - primary. 1 - secondary. 2 - melee. 3 - pda. 4 - spy's watches)
 //						arg5 - weapon's ammo
 //						arg6 - force switch to this weapon
 
@@ -79,6 +79,7 @@ stock SetAmmo(client, slot, ammo)
 	new weapon = GetPlayerWeaponSlot(client, slot);
 	if (IsValidEntity(weapon))
 	{
+		SetEntProp(weapon, Prop_Send, "m_iClip1", 0);
 		new iOffset = GetEntProp(weapon, Prop_Send, "m_iPrimaryAmmoType", 1)*4;
 		new iAmmoTable = FindSendPropInfo("CTFPlayer", "m_iAmmo");
 		SetEntData(client, iAmmoTable+iOffset, ammo, 4, true);
