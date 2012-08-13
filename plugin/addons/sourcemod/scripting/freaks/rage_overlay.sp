@@ -1,5 +1,6 @@
 // rage_overlay:		arg0 - slot (def.0)
 //						arg1 - path to overlay ("root" is \tf\materials\)
+//						arg2 - duration
 
 #pragma semicolon 1
 
@@ -53,7 +54,7 @@ Rage_Overlay(index,const String:ability_name[])
 		{
 			ClientCommand(i, overlay);
 		}
-	CreateTimer(6.0,Clean_Screen);	//Make one timer for all players, not for each.
+	CreateTimer(FF2_GetAbilityArgumentFloat(index,this_plugin_name,ability_name,2,6.0),Clean_Screen);	//Make one timer for all players, not for each.
 	SetCommandFlags("r_screenoverlay", GetCommandFlags("r_screenoverlay") & FCVAR_CHEAT);
 	//return do not needed
 }

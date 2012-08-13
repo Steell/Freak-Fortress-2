@@ -1,4 +1,5 @@
-// special_noanims: 	no arguments
+// rage_noanims:		arg0 - slot (def.0)
+//						arg1 - 1 = Custom Model Rotates (def.0)
 //
 // rage_new_weapon:		arg0 - slot (def.0)
 //						arg1 - weapon's classname
@@ -48,7 +49,10 @@ public Action:Timer_Disable_Anims(Handle:hTimer)
 	for (new index = 0; (Boss=GetClientOfUserId(FF2_GetBossUserId(index)))>0; index++)
 	{
 		if (FF2_HasAbility(index,this_plugin_name,"special_noanims"))
+		{
 			SetEntProp(Boss, Prop_Send, "m_bUseClassAnimations",0);
+			SetEntProp(Boss, Prop_Send, "m_bCustomModelRotates",FF2_GetAbilityArgument(index,this_plugin_name,"special_noanims",1,0));
+		}
 	}
 	return Plugin_Continue;
 }
