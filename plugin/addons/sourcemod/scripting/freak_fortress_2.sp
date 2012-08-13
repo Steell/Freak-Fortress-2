@@ -834,7 +834,7 @@ public Action:event_round_start(Handle:event, const String:name[], bool:dontBroa
 			KvGetString(BossKV[Special[i-1]], "companion", s, 64);
 			if (StrEqual(s,""))
 				break;
-			if (PickSpecial(i,i))
+			if (PickSpecial(i,i-1))
 			{
 				Boss[i] = FindBosses(see);
 				KvRewind(BossKV[Special[i]]);
@@ -3911,14 +3911,13 @@ public bool:PickSpecial(index,index2)
 		decl String:s2[64];
 		decl String:s1[64];
 		KvRewind(BossKV[Special[index2]]);
-		KvGetString(BossKV[Special[index2]], "name", s2, 64," = Failed name3 = "); 	
 		KvGetString(BossKV[Special[index2]], "companion", s2, 64," = Failed name2 = ");
 		decl i;
 		for(i = 0; i < Specials; i++)
 		{
 			KvRewind(BossKV[i]);
 			KvGetString(BossKV[i], "name", s1, 64," = Failed name1 = ");
-			if (StrEqual(s1,s2))
+			if (!strcmp(s1,s2,false))
 			{
 				Special[index] = i;
 				break;
@@ -3928,7 +3927,7 @@ public bool:PickSpecial(index,index2)
 		{
 			KvRewind(BossKV[i]);
 			KvGetString(BossKV[i], "filename", s1, 64," = Failed name1 = ");
-			if (StrEqual(s1,s2))
+			if (!strcmp(s1,s2,false))
 			{
 				Special[index] = i;
 				break;
