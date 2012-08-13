@@ -1,4 +1,4 @@
-// rage_noanims:		arg0 - slot (def.0)
+// special_noanims:		arg0 - unused.
 //						arg1 - 1 = Custom Model Rotates (def.0)
 //
 // rage_new_weapon:		arg0 - slot (def.0)

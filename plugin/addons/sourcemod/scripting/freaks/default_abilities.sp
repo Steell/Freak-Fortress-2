@@ -97,7 +97,7 @@ public Action:FF2_OnAbility2(index,const String:plugin_name[],const String:abili
 		Charge_OnWeightDown(index,slot);	
 	//slot 1 and 2
 	else if (!strcmp(ability_name,"charge_bravejump"))
-		Charge_OnBraveJump(index,slot,action);				//Brave Jump
+		Charge_OnBraveJump(ability_name,index,slot,action);				//Brave Jump
 	else if (!strcmp(ability_name,"charge_teleport"))
 		Charge_OnTeleporter(ability_name,index,slot,action);		//Teleporter (HHH)
 	//slot 0
@@ -213,10 +213,11 @@ public Action:EnableSG(Handle:hTimer,any:iid)
 	return Plugin_Continue;
 }
 
-Charge_OnBraveJump(index,slot,action)
+Charge_OnBraveJump(const String:ability_name[],index,slot,action)
 {
 	new Float:charge=FF2_GetBossCharge(index,slot);
 	new Boss=GetClientOfUserId(FF2_GetBossUserId(index));
+	new Float:multiplier=FF2_GetAbilityArgumentFloat(index,this_plugin_name,ability_name,3,1.0);
 	switch (action)
 	{
 		case 1:
@@ -259,16 +260,16 @@ Charge_OnBraveJump(index,slot,action)
 			GetClientEyeAngles(Boss, rot);
 			if (bEnableSuperDuperJump[index])
 			{
-				vel[2]=750.0+175.0*charge/70+2000;
-				vel[0]+=Cosine(DegToRad(rot[0]))*Cosine(DegToRad(rot[1]))*500;
-				vel[1]+=Cosine(DegToRad(rot[0]))*Sine(DegToRad(rot[1]))*500;
+				vel[2]=(750.0+175.0*charge/70+2000)*multiplier;
+				vel[0]+=Cosine(DegToRad(rot[0]))*Cosine(DegToRad(rot[1]))*500*multiplier;
+				vel[1]+=Cosine(DegToRad(rot[0]))*Sine(DegToRad(rot[1]))*500*multiplier;
 				bEnableSuperDuperJump[index]=false;
 			}
 			else
 			{
-				vel[2]=750.0+175.0*charge/70;
-				vel[0]+=Cosine(DegToRad(rot[0]))*Cosine(DegToRad(rot[1]))*100;
-				vel[1]+=Cosine(DegToRad(rot[0]))*Sine(DegToRad(rot[1]))*100;
+				vel[2]=(750.0+175.0*charge/70)*multiplier;
+				vel[0]+=Cosine(DegToRad(rot[0]))*Cosine(DegToRad(rot[1]))*100*multiplier;
+				vel[1]+=Cosine(DegToRad(rot[0]))*Sine(DegToRad(rot[1]))*100*multiplier;
 			}
 			TeleportEntity(Boss, NULL_VECTOR, NULL_VECTOR, vel);
 			decl String:s[PLATFORM_MAX_PATH];

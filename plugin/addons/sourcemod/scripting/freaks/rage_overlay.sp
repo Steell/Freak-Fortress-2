@@ -1,6 +1,6 @@
 // rage_overlay:		arg0 - slot (def.0)
 //						arg1 - path to overlay ("root" is \tf\materials\)
-//						arg2 - duration
+//						arg2 - duration (def.6)
 
 #pragma semicolon 1
 

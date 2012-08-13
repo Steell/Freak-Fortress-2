@@ -1,4 +1,4 @@
-	#pragma semicolon 1
+#pragma semicolon 1
 
 #include <sourcemod>
 #include <sdktools>
@@ -208,7 +208,8 @@ Rage_CloneAttack(const String:ability_name[],index)
 			TeleportEntity(client, pos, NULL_VECTOR, vel);
 			PrintHintText(client,"%t","seeldier_rage_message",bossname);
 			SetEntProp(client, Prop_Data, "m_takedamage", 0);
-			CreateTimer(4.5,Timer_Enable_Damage,GetClientUserId(client));
+			SDKHook(client, SDKHook_OnTakeDamage, OnTakeDamage_SaveMinion);
+			CreateTimer(4.0,Timer_Enable_Damage,GetClientUserId(client));
 		}
 	new ent = MaxClients+1;
 	decl owner;
@@ -231,6 +232,43 @@ public Action:Timer_Enable_Damage(Handle:hTimer,any:userid)
 	{
 		SetEntProp(client, Prop_Data, "m_takedamage", 2);
 		FF2_SetFF2flags(client,FF2_GetFF2flags(client) & ~FF2FLAG_ALLOWSPAWNINBOSSTEAM);
+		SDKUnhook(client, SDKHook_OnTakeDamage, OnTakeDamage_SaveMinion);
+	}
+	return Plugin_Continue;
+}
+
+//If Seeldier's minion was spawned in a pit.
+public Action:OnTakeDamage_SaveMinion(client, &attacker, &inflictor, &Float:damage, &damagetype, &weapon, Float:damageForce[3], Float:damagePosition[3])
+{
+	if (attacker>MaxClients)
+	{
+		decl String:s[64];
+		if (GetEdictClassname(attacker, s, 64) && !strcmp(s, "trigger_hurt", false))
+		{
+			new pingas;
+			decl target,Float:pos[3];
+			new bool:RedAlivePlayers;
+			for(new i=1;i<=MaxClients;i++)
+				if(IsValidEdict(i) && IsClientInGame(i) && IsPlayerAlive(i) && GetClientTeam(i)!=BossTeam)
+				{
+					RedAlivePlayers=true;
+					break;
+				}
+			do
+			{
+				pingas++;
+				target=GetRandomInt(1,MaxClients);
+				if (pingas==100)
+					return Plugin_Continue;
+			}
+			while (RedAlivePlayers && (!IsValidEdict(target) || (GetClientTeam(target)==BossTeam) || !IsPlayerAlive(target)));
+			
+			GetEntPropVector(target, Prop_Data, "m_vecOrigin", pos);
+			TeleportEntity(client, pos, NULL_VECTOR, NULL_VECTOR);
+			TF2_StunPlayer(client, 2.0, 0.0, TF_STUNFLAGS_GHOSTSCARE|TF_STUNFLAG_NOSOUNDOREFFECT, client);
+			
+			return Plugin_Handled;
+		}
 	}
 	return Plugin_Continue;
 }
@@ -534,13 +572,13 @@ public Action:Timer_FLAG_SLOMOREADYCHANGE(Handle:hTimer,any:index)
 
 public Action:event_player_death(Handle:event, const String:name[], bool:dontBroadcast)
 {
-	if (GetEventBool(event, "feign_death"))
+	if (GetEventInt(event, "death_flags") & TF_DEATHFLAG_DEADRINGER)
 		return Plugin_Continue;
 	new attacker=GetClientOfUserId(GetEventInt(event,"attacker"));
-	new a_index=FF2_GetBossIndex(attacker);
-	new v_index=FF2_GetBossIndex(GetClientOfUserId(GetEventInt(event,"victim")));
 	new client=GetClientOfUserId(GetEventInt(event, "userid"));
-	if (a_index!=-1)
+	new a_index=FF2_GetBossIndex(attacker);
+	new v_index=FF2_GetBossIndex(client);
+	if (a_index != -1)
 	{
 		if (FF2_HasAbility(a_index,this_plugin_name,"special_dropprop"))				//Demopan's "drop stout shako on death"
 		{
@@ -583,6 +621,14 @@ public Action:event_player_death(Handle:event, const String:name[], bool:dontBro
 				SetEntPropEnt(attacker, Prop_Data, "m_hActiveWeapon",weapon);
 			}
 		}
+	}
+	else
+	{
+		if (GetClientTeam(client)==BossTeam)
+			CreateTimer(0.5,Timer_RestoreLastClass,GetClientUserId(client));
+	}	
+	if (v_index != -1)
+	{
 		if (FF2_HasAbility(v_index,this_plugin_name,"rage_cloneattack"))
 		{
 			for(new target = 1; target <= MaxClients; target++)
@@ -590,8 +636,6 @@ public Action:event_player_death(Handle:event, const String:name[], bool:dontBro
 					CreateTimer(0.5,Timer_RestoreLastClass,GetClientUserId(target));
 		}
 	}
-	else if (GetClientTeam(client)==BossTeam)
-		CreateTimer(0.5,Timer_RestoreLastClass,GetClientUserId(client));
 	return Plugin_Continue;
 }
 

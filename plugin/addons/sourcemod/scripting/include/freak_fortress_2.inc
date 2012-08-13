@@ -349,5 +349,8 @@ public __pl_FF2_SetNTVOptional()
 	MarkNativeAsOptional("FF2_GetSpecialKV");		
 	MarkNativeAsOptional("FF2_GetQueuePoints");		
 	MarkNativeAsOptional("FF2_SetQueuePoints");		
+	MarkNativeAsOptional("FF2_GetFF2flags");		
+	MarkNativeAsOptional("FF2_SetFF2flags");		
+	MarkNativeAsOptional("FF2_DoAbility");
 }
 #endif

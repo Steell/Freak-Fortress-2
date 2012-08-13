@@ -84,13 +84,16 @@ public Action:Command_SetMyBoss(client, args)
 	decl Handle:BossKV;
 	new Handle:dMenu = CreateMenu(Command_SetMyBossH);
 	SetMenuTitle(dMenu, "%t","ff2boss_selected");
-	for (new i = 0; (BossKV=FF2_GetSpecialKV(i,true)); i++)
+	decl i;
+	for (i = 0; (BossKV=FF2_GetSpecialKV(i,true)); i++)
 	{
 		if (KvGetNum(BossKV, "blocked",0)) continue;
 		KvGetString(BossKV, "name", Special_Name, 64);
 		IntToString(i+1,s2,4);
 		AddMenuItem(dMenu,s2,Special_Name);
 	}
+	if (i == 1)
+		return Plugin_Handled;
 	SetMenuExitButton(dMenu, true);
 	DisplayMenu(dMenu, client, 20);
 	return Plugin_Handled;
