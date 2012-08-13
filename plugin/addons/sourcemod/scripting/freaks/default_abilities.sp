@@ -22,9 +22,11 @@ new Handle:OnHaleWeighdown = INVALID_HANDLE;
 
 new Handle:jumpHUD;
 
-new bEnableSuperDuperJump[MB];
+new bool:bEnableSuperDuperJump[MB];
 new Float:UberRageCount[MB];
 new BossTeam=_:TFTeam_Blue;
+
+new Handle:cvarOldJump = INVALID_HANDLE;
 
 public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
 {
@@ -42,6 +44,8 @@ public OnPluginStart2()
 	HookEvent("teamplay_round_start", event_round_start);
 	HookEvent("player_death", event_player_death);
 	LoadTranslations("freak_fortress_2.phrases");
+	
+	cvarOldJump = CreateConVar("ff2_oldjump", "0", "Use old Saxton Hale jump equations", FCVAR_PLUGIN, true, 0.0, true, 1.0);
 }
 
 public Action:event_round_start(Handle:event, const String:name[], bool:dontBroadcast)
@@ -245,7 +249,7 @@ Charge_OnBraveJump(const String:ability_name[],index,slot,action)
 		case 3:
 		{
 			new Action:act = Plugin_Continue;
-			new super = bEnableSuperDuperJump[index];
+			new bool:super = bEnableSuperDuperJump[index];
 			Call_StartForward(OnHaleJump);
 			Call_PushCellRef(super);
 			Call_Finish(act);
@@ -255,21 +259,40 @@ Charge_OnBraveJump(const String:ability_name[],index,slot,action)
 			
 			decl Float:pos[3];
 			decl Float:vel[3];
-			decl Float:rot[3];
+
+			GetEntPropVector(Boss, Prop_Send, "m_vecOrigin", pos);
 			GetEntPropVector(Boss, Prop_Data, "m_vecVelocity", vel);
-			GetClientEyeAngles(Boss, rot);
-			if (bEnableSuperDuperJump[index])
+			
+			if (GetConVarBool(cvarOldJump))
 			{
-				vel[2]=(750.0+175.0*charge/70+2000)*multiplier;
-				vel[0]+=Cosine(DegToRad(rot[0]))*Cosine(DegToRad(rot[1]))*500*multiplier;
-				vel[1]+=Cosine(DegToRad(rot[0]))*Sine(DegToRad(rot[1]))*500*multiplier;
-				bEnableSuperDuperJump[index]=false;
+				if (bEnableSuperDuperJump[index])
+				{
+					vel[2]=750 + (charge / 4) * 13.0 + 2000;
+					bEnableSuperDuperJump[index] = false;
+				}
+				else
+					vel[2]=750 + (charge / 4) * 13.0;
+				SetEntProp(Boss, Prop_Send, "m_bJumping", 1);
+				vel[0] *= (1+Sine((charge / 4) * FLOAT_PI / 50));
+				vel[1] *= (1+Sine((charge / 4) * FLOAT_PI / 50));
 			}
 			else
 			{
-				vel[2]=(750.0+175.0*charge/70)*multiplier;
-				vel[0]+=Cosine(DegToRad(rot[0]))*Cosine(DegToRad(rot[1]))*100*multiplier;
-				vel[1]+=Cosine(DegToRad(rot[0]))*Sine(DegToRad(rot[1]))*100*multiplier;
+				decl Float:rot[3];
+				GetClientEyeAngles(Boss, rot);
+				if (bEnableSuperDuperJump[index])
+				{
+					vel[2]=(750.0+175.0*charge/70+2000)*multiplier;
+					vel[0]+=Cosine(DegToRad(rot[0]))*Cosine(DegToRad(rot[1]))*500*multiplier;
+					vel[1]+=Cosine(DegToRad(rot[0]))*Sine(DegToRad(rot[1]))*500*multiplier;
+					bEnableSuperDuperJump[index]=false;
+				}
+				else
+				{
+					vel[2]=(750.0+175.0*charge/70)*multiplier;
+					vel[0]+=Cosine(DegToRad(rot[0]))*Cosine(DegToRad(rot[1]))*100*multiplier;
+					vel[1]+=Cosine(DegToRad(rot[0]))*Sine(DegToRad(rot[1]))*100*multiplier;
+				}
 			}
 			TeleportEntity(Boss, NULL_VECTOR, NULL_VECTOR, vel);
 			decl String:s[PLATFORM_MAX_PATH];
@@ -314,7 +337,7 @@ Charge_OnTeleporter(const String:ability_name[],index,slot,action)
 		case 3:
 		{
 			new Action:act = Plugin_Continue;
-			new super = bEnableSuperDuperJump[index];
+			new bool:super = bEnableSuperDuperJump[index];
 			Call_StartForward(OnHaleJump);
 			Call_PushCellRef(super);
 			Call_Finish(act);
