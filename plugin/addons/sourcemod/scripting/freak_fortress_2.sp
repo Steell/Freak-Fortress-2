@@ -20,7 +20,7 @@
 #define ME 2048
 #define MAXSPECIALS 64
 #define MAXRANDOMS 16
-#define PLUGIN_VERSION "1.02"
+#define PLUGIN_VERSION "1.03"
 
 #define SOUNDEXCEPT_MUSIC 0
 #define SOUNDEXCEPT_VOICE 1
@@ -129,14 +129,16 @@ static const String:ff2versiontitles[][] = 		//the last line of this is what det
 {
 	"1.0",
 	"1.01",
-	"1.02"
+	"1.02",
+	"1.03"
 };
 
 static const String:ff2versiondates[][] = 
 {
 	"6 April 2012",
 	"14 April 2012",
-	"17 April 2012"
+	"17 April 2012",
+	"19 April 2012"
 };
 
 static const maxversion = (sizeof(ff2versiontitles) - 1);
@@ -290,7 +292,7 @@ public OnPluginStart()
 	RegAdminCmd("ff2_charset", Command_CharSet, ADMFLAG_CHEATS, "Stop any currently playing Boss music.");
 	AutoExecConfig(true, "FreakFortress2");
 
-	FF2Cookies = RegClientCookie("ff2_cookies", "", CookieAccess_Protected);
+	FF2Cookies = RegClientCookie("ff2_cookies_mk2", "", CookieAccess_Protected);
 	/*PointCookie = RegClientCookie("hale_queue_points", "Amount of VSH/FF2 Queue points player has", CookieAccess_Public);
 	MusicCookie = RegClientCookie("hale_music_setting", "BossMusic setting", CookieAccess_Public);
 	VoiceCookie = RegClientCookie("hale_voice_setting", "BossVoice setting", CookieAccess_Public);
@@ -406,10 +408,10 @@ public AddToDownload()
 	CloseHandle(Kv);
 	AddFileToDownloadsTable("sound/saxton_hale/9000.wav");
 	PrecacheSound("saxton_hale/9000.wav",true);
-	PrecacheSound("vo/announcer_am_capincite01.wav");
-	PrecacheSound("vo/announcer_am_capincite03.wav");
+	PrecacheSound("vo/announcer_am_capincite01.wav", true);
+	PrecacheSound("vo/announcer_am_capincite03.wav", true);
 	PrecacheSound("weapons/barret_arm_zap.wav", true);
-	PrecacheSound("vo/announcer_ends_2min.wav");
+	PrecacheSound("vo/announcer_ends_2min.wav", true);
 }
 
 EnableSubPlugins()
@@ -503,7 +505,7 @@ public LoadCharacter(const String:character[])
 				KvGetString(BossKV[Specials], s2, s, PLATFORM_MAX_PATH);
 				if (!s[0])
 					break;
-				PrecacheModel(s);
+				PrecacheModel(s,true);
 			}
 		}
 		else if (!strcmp(s3,"mod_download"))
@@ -1583,7 +1585,7 @@ public Action:MakeModelTimer(Handle:hTimer,any:index)
 	SetVariantString(s);
 	AcceptEntityInput(Boss[index], "SetCustomModel");
 	SetEntProp(Boss[index], Prop_Send, "m_bUseClassAnimations",1);
-	TF2_StunPlayer(Boss[index], 5.0, 0.0, TF_STUNFLAGS_GHOSTSCARE|TF_STUNFLAG_NOSOUNDOREFFECT,Boss[index]); 				
+	//TF2_StunPlayer(Boss[index], 5.0, 0.0, TF_STUNFLAGS_GHOSTSCARE|TF_STUNFLAG_NOSOUNDOREFFECT,Boss[index]); 				
 	return Plugin_Continue;
 }
 
@@ -1663,6 +1665,7 @@ public Action:MakeBoss(Handle:hTimer,any:index)
 	EquipBoss(index); 	
 	KSpreeCount[index] = 0;
 	BossCharge[index][0] = 0.0;
+	SetEntProp(Boss[index], Prop_Data, "m_iMaxHealth",BossHealthMax[index]);
 
 	return Plugin_Continue;
 }
@@ -4334,6 +4337,13 @@ stock FindVersionData(Handle:panel, versionindex)
 {
 	switch (versionindex)
 	{
+		case 3: //1.03
+		{
+			DrawPanelText(panel, "1) Finally fixed exploit about queue points.");
+			DrawPanelText(panel, "2) Fixed non-regular bug with 'UTIL_SetModel: not precached'.");
+			DrawPanelText(panel, "3) Fixed potential bug about reducing of Boss' health by healing.");
+			DrawPanelText(panel, "4) Fixed Boss' stun when round begins.");
+		}
 		case 2: //1.02
 		{
 			DrawPanelText(panel, "1) Added isNumOfSpecial parameter into FF2_GetSpecialKV and FF2_GetBossSpecial natives");
