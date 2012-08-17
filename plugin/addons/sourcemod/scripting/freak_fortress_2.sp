@@ -49,7 +49,7 @@ new MusicIndex;
 new Damage[MAXPLAYERS + 1];
 new curHelp[MAXPLAYERS + 1];	
 
-#define FF2FLAG_HELPGIVEN				(1 << 0)		//Used to prevent players from being shown weapon changes multiple times
+#define VSHFLAG_CLASSHELPED				(1 << 0)		//Used to prevent players from being shown weapon changes multiple times
 #define FF2FLAG_UBERREADY				(1 << 1)		//Used when medic says "I'm charged!"
 #define FF2FLAG_ISBUFFED				(1 << 2)		//Used when soldier uses backup's buff.
 #define FF2FLAG_CLASSTIMERDISABLED 		(1 << 3)		//Used to prevent clients' timer.
