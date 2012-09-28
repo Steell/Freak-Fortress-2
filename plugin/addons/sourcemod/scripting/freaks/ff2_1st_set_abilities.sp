@@ -592,7 +592,7 @@ public Action:event_player_death(Handle:event, const String:name[], bool:dontBro
 				SetEntityModel(prop,s);
 				SetEntityMoveType(prop, MOVETYPE_VPHYSICS);
 				SetEntProp(prop, Prop_Data, "m_CollisionGroup", 1);
-				SetEntProp(prop, Prop_Data, "m_usSolidFlags", 16);
+				//SetEntProp(prop, Prop_Data, "m_usSolidFlags", 16);
 				DispatchSpawn(prop);
 				decl Float:pos[3];
 				GetEntPropVector(client, Prop_Send, "m_vecOrigin", pos);
