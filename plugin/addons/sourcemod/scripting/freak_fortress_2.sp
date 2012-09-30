@@ -5733,7 +5733,7 @@ public Native_StartMusic(Handle:plugin, numParams)
     Timer_MusicPlay(INVALID_HANDLE,GetNativeCell(1));
 }
 
-//Stops the boss's music from playing.
+//Stops the current boss's music from playing.
 public Native_StopMusic(Handle:plugin, numParams)
 {
     if (!BossKV[Special[0]]) return;

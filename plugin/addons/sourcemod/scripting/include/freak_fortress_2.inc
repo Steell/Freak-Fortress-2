@@ -84,12 +84,12 @@ native FF2_GetBossTeam();
  * @param index 			Index of boss (0, as usual, but companion like Seeldier has 1)
  * @param buffer 			Buffer for boss' character name
  * @param bufferlen			Length of buffer string
- * @param isNumOfSpecial	0 - "index" parameter means index of current boss (0 - player-Seeman, 1 - player-Seeldier, etc.).
- *							1 - "index" means number of special (1 - Saxton's config. 2 - Vagineer's config, etc.)
- *								Don't forget: 1st chatacter from chatacters.cfg is _0th_ here
+ * @param isNumOfSpecial	false - "index" parameter means index of current boss (0 - player-Seeman, 1 - player-Seeldier, etc.).
+ *							true - "index" means number of special (1 - Saxton's config. 2 - Vagineer's config, etc.)
+ *								   Don't forget: 1st chatacter from chatacters.cfg is _0th_ here
  * @return		    		true if Special exists, false if not
  */
-native bool:FF2_GetBossSpecial(index=0, String:buffer[], bufferlen, isNumOfSpecial=0);
+native bool:FF2_GetBossSpecial(index=0, String:buffer[], bufferlen, isNumOfSpecial = false);
 
 /**
  * Gets Max Health of current Boss
@@ -239,12 +239,12 @@ native FF2_StopMusic(client=0);
  * Gets keyvalues handle of Boss
  *
  * @param index				Index of Boss (0, as usual, but, for example, companion like Seeldier has 1)
- * @param isNumOfSpecial	0 - "index" parameter means index of current boss (0 - player-Seeman, 1 - player-Seeldier, etc.).
- *							1 - "index" means number of special (1 - Saxton's config. 2 - Vagineer's config, etc.)
- *								Don't forget: 1st chatacter from chatacters.cfg is _0th_ here
+ * @param isNumOfSpecial	false - "index" parameter means index of current boss (0 - player-Seeman, 1 - player-Seeldier, etc.).
+ *							true - "index" means number of special (1 - Saxton's config. 2 - Vagineer's config, etc.)
+ *								   Don't forget: 1st chatacter from chatacters.cfg is _0th_ here
  * @return					Handle of Boss' keyvalues
  */
-native Handle:FF2_GetSpecialKV(index , isNumOfSpecial=0);
+native Handle:FF2_GetSpecialKV(index , isNumOfSpecial = false);
 
 /**
  * Gets client's flags for FF2 
