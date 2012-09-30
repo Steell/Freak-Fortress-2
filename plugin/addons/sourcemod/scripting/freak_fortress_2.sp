@@ -35,8 +35,8 @@
 new chkFirstHale;
 new bool:b_allowBossChgClass = false;
 new bool:b_BossChgClassDetected = false;
-new OtherTeam=2;
-new BossTeam=3;
+new OtherTeam = 2;
+new BossTeam = 3;
 new FF2RoundState;
 new playing;
 new healthcheckused;
@@ -542,16 +542,18 @@ public OnMapStart()
             FF2flags[i] = 0;
             Incoming[i] = -1;
         }
+
         for (new i = 0; i < MAXSPECIALS; i++)
         {
             BossKV[i] = INVALID_HANDLE;
         }
+
         Enabled = true;
         Enabled2 = true;
         EnableSubPlugins();
         AddToDownload();
-        strcopy(FF2CharSetStr,2,"");
-        isSubPluginsEnabled=false;
+        strcopy(FF2CharSetStr, 2, "");
+        isSubPluginsEnabled = false;
         tf_arena_use_queue = GetConVarInt(FindConVar("tf_arena_use_queue"));
         mp_teams_unbalance_limit = GetConVarInt(FindConVar("mp_teams_unbalance_limit"));
         tf_arena_first_blood = GetConVarInt(FindConVar("tf_arena_first_blood"));
@@ -561,15 +563,18 @@ public OnMapStart()
         SetConVarInt(FindConVar("mp_teams_unbalance_limit"),0);
         SetConVarInt(FindConVar("tf_arena_first_blood"),0);
         SetConVarInt(FindConVar("mp_forcecamera"),0);
-        new Float:time = Announce;
-        if (time > 1.0)
+        
+        new Float:announceTime = Announce;
+        if (announceTime > 1.0)
         {
-            CreateTimer(time, Timer_Announce, _, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
+            CreateAnnounceTimer(announceTime, Timer_Announce, _, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
         }
+
         CheckToChangeMapDoors();
     }
     RoundCount = 0;
-    bMedieval = FindEntityByClassname(-1, "tf_logic_medieval")!= -1 || bool:GetConVarInt(FindConVar("tf_medieval"));
+    bMedieval = FindEntityByClassname(-1, "tf_logic_medieval") != -1 
+                || bool:GetConVarInt(FindConVar("tf_medieval"));
     
     // For healthbar
     FindHealthBar();
@@ -587,49 +592,70 @@ public OnMapEnd()
     }
 }
 
+//Sets up download tables and loads all characters
 public AddToDownload()
 {
     Specials = 0;
-    decl String:s[PLATFORM_MAX_PATH], String:i_str[4];
-    BuildPath(Path_SM, s, PLATFORM_MAX_PATH, "configs/freak_fortress_2/characters.cfg");
-    if (!FileExists(s))
+
+    decl String:characterConfigPath[PLATFORM_MAX_PATH];
+    BuildPath(Path_SM, characterConfigPath, PLATFORM_MAX_PATH, "configs/freak_fortress_2/characters.cfg");
+    if (!FileExists(characterConfigPath))
     {
         LogError("[FF2] Freak Fortress 2 disabled - can not find character configuration.");
         return;
     }
-    new Handle:Kv = CreateKeyValues("");
-    FileToKeyValues(Kv, s);
+
+    new Handle:kv = CreateKeyValues("");
+    FileToKeyValues(kv, characterConfigPath);
+    
     for (new i = 0; i < FF2CharSet; i++)
-        KvGotoNextKey(Kv);
-    KvGotoFirstSubKey(Kv);
-    KvGetSectionName(Kv, s, 64);
+        KvGotoNextKey(kv);
+    
+    KvGotoFirstSubKey(kv);
+
+    decl String:charPath[PLATFORM_MAX_PATH];
+
+    //KvGetSectionName(kv, characterConfigPath, 64);
+
+    decl String:charIndex[4];
     for (new i = 1; i < MAXSPECIALS; i++)
     {
-        IntToString(i, i_str, 4);
-        KvGetString(Kv, i_str, s, PLATFORM_MAX_PATH);
-        if (!s[0]) break;
-        LoadCharacter(s);
+        IntToString(i, charIndex, sizeof(charIndex));
+        KvGetString(kv, charIndex, charPath, sizeof(charPath));
+        
+        if (strlen(charPath) == 0) 
+            break;
+        
+        LoadCharacter(charPath);
     }
-    KvGetString(Kv, "chances", ChancesString, 64);
-    CloseHandle(Kv);
+
+    //Fetch chances string
+    KvGetString(kv, "chances", ChancesString, sizeof(ChancesString));
+    CloseHandle(kv);
+
+    //Register sound for download and precache
     AddFileToDownloadsTable("sound/saxton_hale/9000.wav");
-    PrecacheSound("saxton_hale/9000.wav",true);
+    PrecacheSound("saxton_hale/9000.wav", true);
+
+    //Precache sounds
     PrecacheSound("vo/announcer_am_capincite01.wav", true);
     PrecacheSound("vo/announcer_am_capincite03.wav", true);
     PrecacheSound("weapons/barret_arm_zap.wav", true);
     PrecacheSound("vo/announcer_ends_2min.wav", true);
 }
 
-EnableSubPlugins(bool:forse = false)
+EnableSubPlugins(bool:force=false)
 {
-    if (isSubPluginsEnabled && !forse)
+    if (isSubPluginsEnabled && !force)
         return;
-    isSubPluginsEnabled=true;
-    decl String:path[PLATFORM_MAX_PATH],String:fname[PLATFORM_MAX_PATH],String:fname_old[PLATFORM_MAX_PATH];
+    
+    isSubPluginsEnabled = true;
+    decl String:path[PLATFORM_MAX_PATH], String:fname[PLATFORM_MAX_PATH], String:fname_old[PLATFORM_MAX_PATH];
     BuildPath(Path_SM, path, PLATFORM_MAX_PATH, "plugins/freaks");
     decl FileType:filetype;
     new Handle:dir = OpenDirectory(path);
     while (ReadDirEntry(dir, fname, PLATFORM_MAX_PATH, filetype))
+    {
         if (filetype == FileType_File && StrContains(fname, ".smx",false)!= -1)
         {
             Format(fname_old,PLATFORM_MAX_PATH,"%s/%s",path,fname);
@@ -638,16 +664,19 @@ EnableSubPlugins(bool:forse = false)
             DeleteFile(fname);
             RenameFile(fname,fname_old);
         }
+    }
 
     dir = OpenDirectory(path);
     while (ReadDirEntry(dir, fname, PLATFORM_MAX_PATH, filetype))
+    {
         if (filetype == FileType_File && StrContains(fname, ".ff2",false)!= -1)
             ServerCommand("sm plugins load freaks/%s",fname);
+    }
 }
 
-DisableSubPlugins(bool:forse = false)
+DisableSubPlugins(bool:force=false)
 {
-    if (!isSubPluginsEnabled && !forse)
+    if (!isSubPluginsEnabled && !force)
         return;
     isSubPluginsEnabled=false;
     decl String:path[PLATFORM_MAX_PATH],String:fname[PLATFORM_MAX_PATH];
@@ -1153,7 +1182,7 @@ public Action:Timer_GogoBoss(Handle:hTimer)
     if (!FF2RoundState)
     {
         decl i;
-        for(i = 0; i <= MaxClients; i++)
+        for(i = 1; i <= MaxClients; i++)
         {
             BossInfoTimer[i][0]=INVALID_HANDLE;
             BossInfoTimer[i][1]=INVALID_HANDLE;
