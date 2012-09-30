@@ -30,7 +30,7 @@
 #define HEALTHBAR_CLASS "monster_resource"
 #define HEALTHBAR_PERCENT_PROP "m_iBossHealthPercentageByte"
 #define HEALTHBAR_MAX 255
-#define MONOCULUS "eyeball_boss"
+#define BOSS "eyeball_boss"
 
 new chkFirstHale;
 new bool:b_allowBossChgClass = false;
@@ -91,7 +91,7 @@ new Handle:cvarUseCountdown;
 
 new Handle:cvarVersion;
 
-new Handle:cvarHealthBar;
+new Handle:cvar_showHealthBar;
 
 new Handle:FF2Cookies;      // "queue_points music monologues classinfo rmb_help reload_help"
 /*
@@ -140,8 +140,8 @@ new Handle:cvarNextmap;
 new bool:isSubPluginsEnabled;
 
 // Healthbar-related things
-new g_healthBar = -1;
-new g_Monoculus = -1; // Track Monoculus for health bar
+new healthBarEntity = -1;
+new bossEntity = -1; // Track Monoculus for health bar
 
 static const String:FF2_VERSION_TITLES[][] =      //the last line of this is what determines the displayed plugin version
 {
@@ -351,14 +351,14 @@ public OnPluginStart()
         true, 1.0
     );
     
-    cvarHealthBar = CreateConVar(
+    cvar_showHealthBar = CreateConVar(
         "ff2_health_bar", "1", 
         "Show boss health bar", 
         FCVAR_PLUGIN, 
         true, 0.0, 
         true, 1.0
     );
-    HookConVarChange(cvarHealthBar, HealthbarEnableChanged);
+    HookConVarChange(cvar_showHealthBar, HealthbarEnableChanged);
 
     AutoExecConfig(true, "FreakFortress2");
 
@@ -372,6 +372,8 @@ public OnPluginStart()
     HookEvent("player_hurt", Event_OnPlayerHurt, EventHookMode_Pre);
     HookEvent("object_destroyed", Event_OnBuildingDestroyed, EventHookMode_Pre);
     HookEvent("object_deflected", Event_OnProjectileDeflected, EventHookMode_Pre);
+
+
 
     HookUserMessage(GetUserMessageId("PlayerJarated"), Event_OnPlayerJarated);
     
@@ -5675,22 +5677,22 @@ public Native_GetFF2flags(Handle:plugin,numParams)
     return FF2flags[GetNativeCell(1)];
 }
 
-public Native_SetFF2flags(Handle:plugin,numParams)
+public Native_SetFF2flags(Handle:plugin, numParams)
 {
     FF2flags[GetNativeCell(1)]=GetNativeCell(2);
 }
 
-public Native_GetQueuePoints(Handle:plugin,numParams)
+public Native_GetQueuePoints(Handle:plugin, numParams)
 {
     return GetClientQueuePoints(GetNativeCell(1));
 }
 
-public Native_SetQueuePoints(Handle:plugin,numParams)
+public Native_SetQueuePoints(Handle:plugin, numParams)
 {
     SetClientQueuePoints(GetNativeCell(1),GetNativeCell(2));
 }
 
-public Native_GetSpecialKV(Handle:plugin,numParams)
+public Native_GetSpecialKV(Handle:plugin, numParams)
 {
     new index = GetNativeCell(1);
     new bool:isNumOfSpecial = bool:GetNativeCell(2);
@@ -5712,15 +5714,17 @@ public Native_GetSpecialKV(Handle:plugin,numParams)
             return _:BossKV[Special[index]];
         }
     }
-    return _:INVALID_HANDLE;    
+    return _:INVALID_HANDLE;
 }
 
-public Native_StartMusic(Handle:plugin,numParams)
+//Starts playing the boss's music.
+public Native_StartMusic(Handle:plugin, numParams)
 {
     Timer_MusicPlay(INVALID_HANDLE,GetNativeCell(1));
 }
 
-public Native_StopMusic(Handle:plugin,numParams)
+//Stops the boss's music from playing.
+public Native_StopMusic(Handle:plugin, numParams)
 {
     if (!BossKV[Special[0]]) return;
     KvRewind(BossKV[Special[0]]);
@@ -5749,14 +5753,15 @@ public Native_StopMusic(Handle:plugin,numParams)
     }   
 }
 
-public Native_RandomSound(Handle:plugin,numParams)
+//Plays a random sound for the given boss using the given ability.
+public Native_RandomSound(Handle:plugin, numParams)
 {
     new length = GetNativeCell(3)+1;
     new index = GetNativeCell(4);
     new slot = GetNativeCell(5);
     new String:str[length];
     
-    decl alength;
+    new alength;
     GetNativeStringLength(1, alength);
     alength++;
     decl String:keyvalue[alength];
@@ -5771,11 +5776,13 @@ public Native_RandomSound(Handle:plugin,numParams)
     return see;
 }
 
+//Gets if the current map is a Vs Saxton Hale map.
 public Native_IsVSHMap(Handle:plugin, numParams)
 {
     return false;
 }
 
+// Takes the ???? as a buffer and changes it to ????
 public Action:VSH_OnIsSaxtonHaleModeEnabled(&result)
 {
     if ((!result || result == 1) && Enabled)
@@ -5786,6 +5793,7 @@ public Action:VSH_OnIsSaxtonHaleModeEnabled(&result)
     return Plugin_Continue;
 }
 
+//Gets the team that the bosses are on and puts it into the given buffer.
 public Action:VSH_OnGetSaxtonHaleTeam(&result)
 {
     if (Enabled)
@@ -5796,6 +5804,7 @@ public Action:VSH_OnGetSaxtonHaleTeam(&result)
     return Plugin_Continue;
 }
 
+//Gets the user ID of the first boss and puts it into the given buffer.
 public Action:VSH_OnGetSaxtonHaleUserId(&result)
 {
     if (Enabled && IsClientConnected(Boss[0]))
@@ -5806,6 +5815,7 @@ public Action:VSH_OnGetSaxtonHaleUserId(&result)
     return Plugin_Continue;
 }
 
+//Gets a buffer and puts into that buffer the index of the ????
 public Action:VSH_OnGetSpecialRoundIndex(&result)
 {
     if (Enabled)
@@ -5816,6 +5826,7 @@ public Action:VSH_OnGetSpecialRoundIndex(&result)
     return Plugin_Continue;
 }
 
+//Gets a buffer and puts in that buffer the current health of the first boss.
 public Action:VSH_OnGetSaxtonHaleHealth(&result)
 {
     if (Enabled)
@@ -5826,6 +5837,7 @@ public Action:VSH_OnGetSaxtonHaleHealth(&result)
     return Plugin_Continue;
 }
 
+//Gets a buffer and puts in that buffer the maximum health the first boss can have.
 public Action:VSH_OnGetSaxtonHaleHealthMax(&result)
 {
     if (Enabled)
@@ -5836,6 +5848,8 @@ public Action:VSH_OnGetSaxtonHaleHealthMax(&result)
     return Plugin_Continue;
 }
 
+//Gets a client and a buffer and puts into the buffer
+//  the amount of damage that the given client has taken so far.
 public Action:VSH_OnGetClientDamage(client,&result)
 {
     if (Enabled)
@@ -5846,6 +5860,7 @@ public Action:VSH_OnGetClientDamage(client,&result)
     return Plugin_Continue;
 }
 
+//Gets the current state of the round and puts it into the given buffer.
 public Action:VSH_OnGetRoundState(&result)
 {
     if (Enabled)
@@ -5856,125 +5871,166 @@ public Action:VSH_OnGetRoundState(&result)
     return Plugin_Continue;
 }
 
+// Updates the health bar's value.
 UpdateHealthBar()
 {
-    // Adjust health bar
-    if (!GetConVarBool(cvarHealthBar) || g_Monoculus != -1)
-    {
+    // If there are no bosses or the health bar shouldn't be shown, stop.
+    if (!GetConVarBool(cvarShowHealthBar) || bossEntity != -1)
+
         return;
-    }
+
+    
+    //Counters for health values. The health bar value is the sum of all bosses' health.
     new healthAmount = 0;
     new maxHealthAmount = 0;
     
+    //The number of bosses currently playing.
     new count = 0;
     
+    // Accumulate the health and max health values.
     for (new i = 0; i < MaxClients; i++)
     {
+        //If the current position in the array of bosses references a living, valid boss:
         if (IsValidClient(Boss[i]) && IsPlayerAlive(Boss[i]))
         {
+            //Increment the counters.
             count++;
+            //Factor in extra lives into the boss's health value.
             healthAmount += BossHealth[i]-BossHealthMax[i]*(BossLives[i]-1);
             maxHealthAmount += BossHealthMax[i];
         }
     }
     
-    new healthPercent = 0;
 
+    //Get the health percent (the ratio of current health to max health), ranging from 0 to HEALTHBAR_MAX.
+    new healthBarValue = 0;
+
+    //If there's at least one active boss, set the heatlh bar value.
     if (count > 0)
     {
-        healthPercent = RoundToCeil(float(healthAmount) / float(maxHealthAmount) * float(HEALTHBAR_MAX));
+        //Calculate the health percent.
+        healthBarValue = RoundToCeil(float(healthAmount) / float(maxHealthAmount) *
+                                    float(HEALTHBAR_MAX));
 
-        if (healthPercent > HEALTHBAR_MAX)
+        //Limit the health value.
+        if (healthBarValue > HEALTHBAR_MAX)
         {
-            healthPercent = HEALTHBAR_MAX;
+            healthBarValue = HEALTHBAR_MAX;
         }
-        else if (healthPercent <= 0)
+
+        else if (healthBarValue < 1)
         {
-            healthPercent = 1;
+
+            healthBarValue = 1;
         }
     }
     
-    //PrintToChatAll("Updating healthbar to %d", healthPercent);
+    //PrintToChatAll("Updating healthbar to %d", healthBarValue);
     
-    SetEntProp(g_healthBar, Prop_Send, HEALTHBAR_PERCENT_PROP, healthPercent);
+    //Set the health bar entity's value.
+    SetEntProp(healthBarEntity, Prop_Send, HEALTHBAR_PERCENT_PROP, healthBarValue);
 }
-
-public OnTakeDamagePost(client, attacker, inflictor, Float:damage, damagetype)
+// Stops all bosses from being jarate'd or marked for death.
+public OnTakeDamagePost(victim, attacker, inflictor, Float:damage, damagetype)
 {
-    if (IsBoss(client))
+    //If a boss was hit:
+    if (IsBoss(victim))
     {
-        new index = GetBossIndex(client);
+        //Get his index in the collection of bosses.
+        new index = GetBossIndex(victim);
         
+        //If he wasn't found in the collection, give up.
         if (index == -1)
             return;
         
+        //Turn off jarate.
         if (TF2_IsPlayerInCondition(Boss[index],TFCond_Jarated))
             TF2_RemoveCondition(Boss[index],TFCond_Jarated);
         
+        //Turn off milked.
         //if (TF2_IsPlayerInCondition(Boss[index], TFCond_Milked))
         //  TF2_RemoveCondition(Boss[index],TFCond_Milked);
         
+        //Turn off marked for death.
         if (TF2_IsPlayerInCondition(Boss[index], TFCond_MarkedForDeath))
             TF2_RemoveCondition(Boss[index], TFCond_MarkedForDeath);
 
+        //Update the health bar value.
         UpdateHealthBar();
     }
 }
 
-// These are solely for tracking Monoculus and auto-disabling/enabling the healthbar
+// The following two functions are solely for tracking the boss and auto-disabling/enabling the healthbar:
+
+// Cache references to the boss and/or health-bar when they are created.
 public OnEntityCreated(entity, const String:classname[])
 {
-    if (!GetConVarBool(cvarHealthBar))
+    //If the health bar shouldn't even be shown, we don't care if anything was created.
+    if (!GetConVarBool(cvarShowHealthBar))
     {
         return;
     }
 
+    //If the health-bar was just created, cache the reference.
     if (StrEqual(classname, HEALTHBAR_CLASS))
     {
-        g_healthBar = entity;
+
+        healthBarEntity = entity;
     }
-    if (g_Monoculus == -1 && StrEqual(classname, MONOCULUS))
+    //If the boss was just created, cache the reference.
+    if (bossEntity == -1 && StrEqual(classname, BOSS))
     {
-        g_Monoculus = entity;
+
+        bossEntity = entity;
     }
 }
 
+// Reacts to the boss being destroyed.
 public OnEntityDestroyed(entity)
 {
+    // Sanity-check inputs.
     if (entity == -1)
-        return;
-    
-    if (entity == g_Monoculus)
     {
-        g_Monoculus = FindEntityByClassname(-1, MONOCULUS);
-        if (g_Monoculus == entity)
+        return;
+    }
+    
+    //If the boss was destroyed, look for the other boss.
+    if (entity == bossEntity)
+    {
+        bossEntity = FindEntityByClassname(-1, BOSS);
+        //If we accidentally just found the boss that was destroyed, go to the next one.
+        if (bossEntity == entity)
         {
-            g_Monoculus = FindEntityByClassname(entity, MONOCULUS);
+            bossEntity = FindEntityByClassname(entity, BOSS);
         }
     }   
 }
 
+// Finds the entity ID of the health bar and stores it in healthBarEntity.
 FindHealthBar()
 {
-    g_healthBar = FindEntityByClassname(-1, HEALTHBAR_CLASS);
+    healthBarEntity = FindEntityByClassname(-1, HEALTHBAR_CLASS);
     
-    // This shouldn't happen, but just in case...
-    if (g_healthBar == -1)
+    // This shouldn't happen, but just in case the healthbar doesn't exist, create it.
+    if (healthBarEntity == -1)
     {
-        g_healthBar = CreateEntityByName(HEALTHBAR_CLASS);
+        healthBarEntity = CreateEntityByName(HEALTHBAR_CLASS);
     }
 }
-
+// HealthbarEnableChanged : Handle x String x String -> void
+// Reacts to the "show health bar" convar being changed.
 public HealthbarEnableChanged(Handle:convar, const String:oldValue[], const String:newValue[])
 {
-    // Easier than checking newvalue and oldvalue
-    if (GetConVarBool(cvarHealthBar))
+    
+    //If the health bar should be shown, update it.
+    if (GetConVarBool(cvar_showHealthBar))
     {
         UpdateHealthBar();
     }
-    else if (g_Monoculus == -1)
+    //Otherwise, if the boss isn't there, empty the health bar.
+    else if (bossEntity == -1)
     {
-        SetEntProp(g_healthBar, Prop_Send, HEALTHBAR_PERCENT_PROP, 0);
+        SetEntProp(healthBarEntity, Prop_Send, HEALTHBAR_PERCENT_PROP, 0);
     }
 }
 
