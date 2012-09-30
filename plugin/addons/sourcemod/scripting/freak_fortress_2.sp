@@ -108,6 +108,7 @@ new Handle:timeleftHUD;
 new Handle:abilitiesHUD;
 new Handle:doorchecktimer;
 
+// Is the plugin disabled?
 new bool:Enabled = true;
 new bool:Enabled2 = true;
 new PointDelay = 6;
@@ -4197,16 +4198,21 @@ stock CalcBossHealthMax(index)
 
 stock bool:HasAbility(index,const String:plugin_name[],const String:ability_name[])
 {
+    // If the plugin is disabled, do nothing.
     if (!Enabled)
         return false;
-    if (index == -1 || Special[index] == -1 || !BossKV[Special[index]])
+    // 
+    if (index == -1 || Special[index] == -1 || BossKV[Special[index]] == INVALID_HANDLE)
         return false;
+    // Ensure that we're at root of BossKV.
     KvRewind(BossKV[Special[index]]);
-    if (!BossKV[Special[index]])
+    // 
+    if (BossKV[Special[index]] == INVALID_HANDLE)
     {
         LogError("failed KV: %i %i",index,Special[index]);
         return false;
     }
+
     decl String:s[12];
     for(new i = 1; i < MAXRANDOMS; i++)
     {
