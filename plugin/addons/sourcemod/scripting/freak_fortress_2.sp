@@ -647,21 +647,25 @@ public AddToDownload()
     PrecacheSound("vo/announcer_ends_2min.wav", true);
 }
 
+//Enables sub-plugins ???? what is a sub plugin?
 EnableSubPlugins(bool:force=false)
 {
     if (isSubPluginsEnabled && !force)
         return;
     
+    //Remember we have sub plugins enabled
     isSubPluginsEnabled = true;
+
     decl String:path[PLATFORM_MAX_PATH], String:fname[PLATFORM_MAX_PATH], String:fname_old[PLATFORM_MAX_PATH];
     BuildPath(Path_SM, path, PLATFORM_MAX_PATH, "plugins/freaks");
-    decl FileType:filetype;
+    
+    new FileType:filetype;
     new Handle:dir = OpenDirectory(path);
     while (ReadDirEntry(dir, fname, PLATFORM_MAX_PATH, filetype))
     {
-        if (filetype == FileType_File && StrContains(fname, ".smx",false)!= -1)
+        if (filetype == FileType_File && StrContains(fname, ".smx", false) != -1)
         {
-            Format(fname_old,PLATFORM_MAX_PATH,"%s/%s",path,fname);
+            Format(fname_old, PLATFORM_MAX_PATH, "%s/%s", path, fname);
             ReplaceString(fname, PLATFORM_MAX_PATH, ".smx", ".ff2", false);
             Format(fname,PLATFORM_MAX_PATH,"%s/%s",path,fname);
             DeleteFile(fname);
