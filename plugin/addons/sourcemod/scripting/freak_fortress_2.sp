@@ -28,7 +28,7 @@
 #define SOUNDEXCEPT_VOICE 1
 
 #define HEALTHBAR_CLASS "monster_resource"
-#define HEALTHBAR_PROPERTY "m_iBossHealthPercentageByte"
+#define HEALTHBAR_PERCENT_PROP "m_iBossHealthPercentageByte"
 #define HEALTHBAR_MAX 255
 #define MONOCULUS "eyeball_boss"
 
@@ -77,17 +77,19 @@ new shortname[MAXPLAYERS+1];            //new SerPointsToZeroTarget[MAXPLAYERS+1
 
 new timeleft;
 
-new Handle:cvarPointDelay;
+new Handle:cvar_PointEnableDelayPerPlayer;
 new Handle:cvarAnnounce;
 new Handle:cvarEnabled;
 new Handle:cvarAliveToEnable;
-new Handle:cvarPointType;
+new Handle:cvar_PointEnableCondition;
 
 new Handle:cvarCrits;
 new Handle:cvarFirstRound;
 new Handle:cvarCircuitStun;
 new Handle:cvarSpecForceBoss;
 new Handle:cvarUseCountdown;
+
+new Handle:cvarVersion;
 
 new Handle:cvarHealthBar;
 
@@ -141,7 +143,7 @@ new bool:isSubPluginsEnabled;
 new g_healthBar = -1;
 new g_Monoculus = -1; // Track Monoculus for health bar
 
-static const String:ff2versiontitles[][] =      //the last line of this is what determines the displayed plugin version
+static const String:FF2_VERSION_TITLES[][] =      //the last line of this is what determines the displayed plugin version
 {
     "1.0",
     "1.01",
@@ -160,7 +162,7 @@ static const String:ff2versiontitles[][] =      //the last line of this is what 
     "1.06h" 
 };
 
-static const String:ff2versiondates[][] = 
+static const String:FF2_VERSION_DATES[][] = 
 {
     "6 April 2012",
     "14 April 2012",
@@ -179,7 +181,7 @@ static const String:ff2versiondates[][] =
     "6 Sep 2012"    
 };
 
-static const maxversion = (sizeof(ff2versiontitles) - 1);
+static const FF2_MAX_VERSION = sizeof(FF2_VERSION_TITLES) - 1;
 
 new Specials = 0;
 new Handle:BossKV[MAXSPECIALS];
@@ -195,7 +197,8 @@ new Float:BossSpeed[MAXSPECIALS];
 new Float:BossRageDamage[MAXSPECIALS];
 new String:ChancesString[64];
 
-public Plugin:myinfo = {
+public Plugin:myinfo = 
+{
     name = "Freak Fortress 2",
     author = "Rainbolt Dash, FlaminSarge",
     description = "RUUUUNN!! COWAAAARRDSS!",
@@ -204,6 +207,7 @@ public Plugin:myinfo = {
 
 public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
 {
+    //Register Natives
     CreateNative("FF2_IsFF2Enabled", Native_IsEnabled);
     CreateNative("FF2_GetBossUserId", Native_GetBoss);
     CreateNative("FF2_GetBossIndex", Native_GetIndex);
@@ -229,6 +233,7 @@ public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
     CreateNative("FF2_GetQueuePoints", Native_GetQueuePoints);
     CreateNative("FF2_SetQueuePoints", Native_SetQueuePoints);
     
+    //Register Forwards
     PreAbility = CreateGlobalForward(
         "FF2_PreAbility",
         ET_Hook, Param_Cell, Param_String, Param_String, Param_Cell, Param_CellByRef
@@ -254,113 +259,236 @@ public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
         ET_Hook, Param_Array
     );
     
+    //Register Library
     RegPluginLibrary("freak_fortress_2");
     
+    //Register Vs Saxton Hale natives
     AskPluginLoad_VSH();
+
     return APLRes_Success;
 }
 
 public OnPluginStart()
 {
-    LogMessage("=== Freak Fortress 2 Initializing - v.%s === ",ff2versiontitles[maxversion]);
+    LogMessage("=== Freak Fortress 2 Initializing - v.%s === ", FF2_VERSION_TITLES[FF2_MAX_VERSION]);
 
-    new Handle:cvarVersion = CreateConVar("ff2_version", PLUGIN_VERSION, "Freak Fortress 2 Version", FCVAR_REPLICATED|FCVAR_NOTIFY|FCVAR_PLUGIN|FCVAR_SPONLY|FCVAR_DONTRECORD);
-    cvarPointType = CreateConVar("ff2_point_type", "0", "Select condition to enable point (0 - alive players, 1 - time)", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-    cvarPointDelay = CreateConVar("ff2_point_delay", "6", "Addition (for each player) delay before point's activation.", FCVAR_PLUGIN);
-    cvarAliveToEnable = CreateConVar("ff2_point_alive", "5", "Enable control points when there are X people left alive.", FCVAR_PLUGIN);
-    cvarAnnounce = CreateConVar("ff2_announce", "120.0", "Info about mode will show every X seconds. Must be greater than 1.0 to show.", FCVAR_PLUGIN, true, 0.0);
-    cvarEnabled = CreateConVar("ff2_enabled", "1", "Do you really want set it to 0?", FCVAR_PLUGIN|FCVAR_DONTRECORD, true, 0.0, true, 1.0);
-    cvarCrits = CreateConVar("ff2_crits", "1", "Can Boss get crits?", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-    cvarFirstRound = CreateConVar("ff2_first_round", "0", "Disable(0) or Enable(1) FF2 in 1st round.", FCVAR_PLUGIN, true, 0.0, true, 1.0);
-    cvarCircuitStun = CreateConVar("ff2_circuit_stun", "2", "0 to disable Short Circuit stun, > 0 to make it stun Boss for x seconds", FCVAR_PLUGIN, true, 0.0);
-    cvarUseCountdown = CreateConVar("ff2_countdown", "120", "Seconds of deathly countdown (begins when only 1 enemy lefts)", FCVAR_PLUGIN);
-    cvarSpecForceBoss = CreateConVar("ff2_spec_force_boss", "0", "Spectators are allowed in Boss' queue.", FCVAR_PLUGIN, true, 0.0, true, 1.0);
+    //Version and tracking cvar
+    cvarVersion = CreateConVar(
+        "ff2_version", PLUGIN_VERSION, 
+        "Freak Fortress 2 Version", 
+        FCVAR_REPLICATED|FCVAR_NOTIFY|FCVAR_PLUGIN|FCVAR_SPONLY|FCVAR_DONTRECORD
+    );
+
+    cvar_PointEnableCondition = CreateConVar(
+        "ff2_point_type", "0", 
+        "Select condition to enable point (0 - alive players, 1 - time)", 
+        FCVAR_PLUGIN, 
+        true, 0.0,
+        true, 1.0
+    );
+
+    cvar_PointEnableDelayPerPlayer = CreateConVar(
+        "ff2_point_delay", "6", 
+        "Additional (for each player) delay before point's activation.", 
+        FCVAR_PLUGIN
+    );
+
+    cvarAliveToEnable = CreateConVar(
+        "ff2_point_alive", "5", 
+        "Enable control points when there are X people left alive.", 
+        FCVAR_PLUGIN
+    );
+
+    cvarAnnounce = CreateConVar(
+        "ff2_announce", "120.0", 
+        "Info about mode will show every X seconds. Must be greater than 1.0 to show.", 
+        FCVAR_PLUGIN, 
+        true, 0.0
+    );
+
+    cvarEnabled = CreateConVar(
+        "ff2_enabled", "1", 
+        "Do you really want set it to 0?", 
+        FCVAR_PLUGIN|FCVAR_DONTRECORD, 
+        true, 0.0, 
+        true, 1.0
+    );
+
+    cvarCrits = CreateConVar(
+        "ff2_crits", "1", 
+        "Can Boss get crits?", 
+        FCVAR_PLUGIN, 
+        true, 0.0, 
+        true, 1.0
+    );
+
+    cvarFirstRound = CreateConVar(
+        "ff2_first_round", "0", 
+        "Disable(0) or Enable(1) FF2 in 1st round.", 
+        FCVAR_PLUGIN, 
+        true, 0.0,
+        true, 1.0
+    );
+
+    cvarCircuitStun = CreateConVar(
+        "ff2_circuit_stun", "2", 
+        "0 to disable Short Circuit stun, > 0 to make it stun Boss for x seconds", 
+        FCVAR_PLUGIN, 
+        true, 0.0
+    );
+
+    cvarUseCountdown = CreateConVar(
+        "ff2_countdown", "120", 
+        "Seconds of deathly countdown (begins when only 1 enemy lefts)", 
+        FCVAR_PLUGIN
+    );
+
+    cvarSpecForceBoss = CreateConVar(
+        "ff2_spec_force_boss", "0", 
+        "Spectators are allowed in Boss' queue.", 
+        FCVAR_PLUGIN, 
+        true, 0.0, 
+        true, 1.0
+    );
     
-    cvarHealthBar = CreateConVar("ff2_health_bar", "1", "Show boss health bar", FCVAR_PLUGIN, true, 0.0, true, 1.0); // Added by Powerlord
+    cvarHealthBar = CreateConVar(
+        "ff2_health_bar", "1", 
+        "Show boss health bar", 
+        FCVAR_PLUGIN, 
+        true, 0.0, 
+        true, 1.0
+    );
     HookConVarChange(cvarHealthBar, HealthbarEnableChanged);
 
-    HookEvent("player_changeclass", OnChangeClass);
-    HookEvent("teamplay_round_start", event_round_start);
-    HookEvent("teamplay_round_win", event_round_end);
-    HookEvent("player_changeclass", event_changeclass);
-    HookEvent("player_spawn", event_player_spawn, EventHookMode_Pre);
-    HookEvent("player_death", event_player_death, EventHookMode_Pre);
-    HookEvent("player_chargedeployed", event_uberdeployed);
-    HookEvent("player_hurt", event_hurt,EventHookMode_Pre);
-    HookEvent("object_destroyed", event_destroy, EventHookMode_Pre);
-    HookEvent("object_deflected", event_deflect, EventHookMode_Pre);
-    HookUserMessage(GetUserMessageId("PlayerJarated"), event_jarate);
-    HookConVarChange(cvarEnabled, CvarChange);
-    HookConVarChange(cvarPointDelay, CvarChange);
-    HookConVarChange(cvarAnnounce, CvarChange);
-    HookConVarChange(cvarPointType, CvarChange);
-    HookConVarChange(cvarPointDelay, CvarChange);
-    HookConVarChange(cvarAliveToEnable, CvarChange);
-    HookConVarChange(cvarCrits, CvarChange);
-    HookConVarChange(cvarCircuitStun, CvarChange);
-    HookConVarChange(cvarUseCountdown, CvarChange);
-    HookConVarChange(cvarSpecForceBoss, CvarChange);
-    cvarNextmap=FindConVar("sm_nextmap");
-    HookConVarChange(cvarNextmap,CvarChangeNextmap);
-
-    RegConsoleCmd("ff2", FF2Panel);
-    RegConsoleCmd("ff2_hp", Command_GetHPCmd);
-    RegConsoleCmd("ff2hp", Command_GetHPCmd);
-    RegConsoleCmd("ff2_next", QueuePanelCmd);
-    RegConsoleCmd("ff2next", QueuePanelCmd);
-    RegConsoleCmd("ff2_classinfo", HelpPanel2Cmd);
-    RegConsoleCmd("ff2classinfo", HelpPanel2Cmd);
-    RegConsoleCmd("ff2_new", NewPanelCmd);
-    RegConsoleCmd("ff2new", NewPanelCmd);
-    RegConsoleCmd("ff2music", MusicTogglePanelCmd);
-    RegConsoleCmd("ff2_music", MusicTogglePanelCmd);
-    RegConsoleCmd("ff2voice", VoiceTogglePanelCmd);
-    RegConsoleCmd("ff2_voice", VoiceTogglePanelCmd);
-    RegConsoleCmd("ff2_resetpoints", ResetQueuePointsCmd);
-    RegConsoleCmd("ff2resetpoints", ResetQueuePointsCmd);
-    
-    RegConsoleCmd("hale", FF2Panel);
-    RegConsoleCmd("hale_hp", Command_GetHPCmd);
-    RegConsoleCmd("halehp", Command_GetHPCmd);
-    RegConsoleCmd("hale_next", QueuePanelCmd);
-    RegConsoleCmd("halenext", QueuePanelCmd);
-    RegConsoleCmd("hale_classinfo", HelpPanel2Cmd);
-    RegConsoleCmd("haleclassinfo", HelpPanel2Cmd);
-    RegConsoleCmd("hale_new", NewPanelCmd);
-    RegConsoleCmd("halenew", NewPanelCmd);
-    RegConsoleCmd("halemusic", MusicTogglePanelCmd);
-    RegConsoleCmd("hale_music", MusicTogglePanelCmd);
-    RegConsoleCmd("halevoice", VoiceTogglePanelCmd);
-    RegConsoleCmd("hale_voice", VoiceTogglePanelCmd);
-    RegConsoleCmd("hale_resetpoints", ResetQueuePointsCmd);
-    RegConsoleCmd("haleresetpoints", ResetQueuePointsCmd);
-    
-    RegConsoleCmd("nextmap", NextMapCmd);
-    RegConsoleCmd("say", SayCmd);
-    RegConsoleCmd("say_team", SayCmd);
-    
-    AddCommandListener(DoTaunt, "taunt"); 
-    AddCommandListener(DoTaunt, "+taunt");
-    AddCommandListener(DoTaunt, "+use_action_slot_item_server");
-    AddCommandListener(DoTaunt, "use_action_slot_item_server");
-    AddCommandListener(DoSuicide, "explode");  
-    AddCommandListener(DoSuicide, "kill");  
-
-    RegAdminCmd("ff2_special", Command_MakeNextSpecial, ADMFLAG_CHEATS, "Call a special to next round.");
-    RegAdminCmd("ff2_addpoints", Command_Points, ADMFLAG_CHEATS, "ff2_addpoints < target > < points > - Add queue points to user.");
-    RegAdminCmd("ff2_point_enable", Command_Point_Enable, ADMFLAG_CHEATS, "Enable CP. Only with ff2_point_type = 0");
-    RegAdminCmd("ff2_point_disable", Command_Point_Disable, ADMFLAG_CHEATS, "Disable CP. Only with ff2_point_type = 0");
-    RegAdminCmd("ff2_stop_music", Command_StopMusic, ADMFLAG_CHEATS, "Stop any currently playing Boss music.");
-    RegAdminCmd("ff2_charset", Command_CharSet, ADMFLAG_CHEATS, "Stop any currently playing Boss music.");
-    RegAdminCmd("ff2_reload_subplugins", Command_ReloadSubPlugins, ADMFLAG_RCON, "Reload FF2's subplugins.");
     AutoExecConfig(true, "FreakFortress2");
 
+    HookEvent("player_changeclass", Event_OnChangeClass);
+    HookEvent("teamplay_round_start", Event_OnRoundStart);
+    HookEvent("teamplay_round_win", Event_OnRoundEnd);
+    HookEvent("player_changeclass", Event_OnPlayerClassChange);
+    HookEvent("player_spawn", Event_OnPlayerSpawn, EventHookMode_Pre);
+    HookEvent("player_death", Event_OnPlayerDeath, EventHookMode_Pre);
+    HookEvent("player_chargedeployed", Event_OnUberDeployed);
+    HookEvent("player_hurt", Event_OnPlayerHurt, EventHookMode_Pre);
+    HookEvent("object_destroyed", Event_OnBuildingDestroyed, EventHookMode_Pre);
+    HookEvent("object_deflected", Event_OnProjectileDeflected, EventHookMode_Pre);
+
+    HookUserMessage(GetUserMessageId("PlayerJarated"), Event_OnPlayerJarated);
+    
+    HookConVarChange(cvarEnabled,       OnConVarChanged);
+    HookConVarChange(cvar_PointEnableDelayPerPlayer,    OnConVarChanged);
+    HookConVarChange(cvarAnnounce,      OnConVarChanged);
+    HookConVarChange(cvar_PointEnableCondition,     OnConVarChanged);
+    HookConVarChange(cvar_PointEnableDelayPerPlayer,    OnConVarChanged);
+    HookConVarChange(cvarAliveToEnable, OnConVarChanged);
+    HookConVarChange(cvarCrits,         OnConVarChanged);
+    HookConVarChange(cvarCircuitStun,   OnConVarChanged);
+    HookConVarChange(cvarUseCountdown,  OnConVarChanged);
+    HookConVarChange(cvarSpecForceBoss, OnConVarChanged);
+    cvarNextmap = FindConVar("sm_nextmap");
+    HookConVarChange(cvarNextmap,       OnNextmapChanged);
+
+    RegConsoleCmd("ff2",                Command_FF2Panel);
+    RegConsoleCmd("ff2_hp",             Command_GetHPCmd);
+    RegConsoleCmd("ff2hp",              Command_GetHPCmd);
+    RegConsoleCmd("ff2_next",           Command_QueuePanel);
+    RegConsoleCmd("ff2next",            Command_QueuePanel);
+    RegConsoleCmd("ff2_classinfo",      Command_HelpPanel2);
+    RegConsoleCmd("ff2classinfo",       Command_HelpPanel2);
+    RegConsoleCmd("ff2_new",            Command_NewPanel);
+    RegConsoleCmd("ff2new",             Command_NewPanel);
+    RegConsoleCmd("ff2music",           Command_MusicTogglePanel);
+    RegConsoleCmd("ff2_music",          Command_MusicTogglePanel);
+    RegConsoleCmd("ff2voice",           Command_VoiceTogglePanel);
+    RegConsoleCmd("ff2_voice",          Command_VoiceTogglePanel);
+    RegConsoleCmd("ff2_resetpoints",    Command_ResetQueuePoints);
+    RegConsoleCmd("ff2resetpoints",     Command_ResetQueuePoints);
+    
+    //Vs Saxton Hale backwards compatibility
+    RegConsoleCmd("hale",               Command_FF2Panel);
+    RegConsoleCmd("hale_hp",            Command_GetHPCmd);
+    RegConsoleCmd("halehp",             Command_GetHPCmd);
+    RegConsoleCmd("hale_next",          Command_QueuePanel);
+    RegConsoleCmd("halenext",           Command_QueuePanel);
+    RegConsoleCmd("hale_classinfo",     Command_HelpPanel2);
+    RegConsoleCmd("haleclassinfo",      Command_HelpPanel2);
+    RegConsoleCmd("hale_new",           Command_NewPanel);
+    RegConsoleCmd("halenew",            Command_NewPanel);
+    RegConsoleCmd("halemusic",          Command_MusicTogglePanel);
+    RegConsoleCmd("hale_music",         Command_MusicTogglePanel);
+    RegConsoleCmd("halevoice",          Command_VoiceTogglePanel);
+    RegConsoleCmd("hale_voice",         Command_VoiceTogglePanel);
+    RegConsoleCmd("hale_resetpoints",   Command_ResetQueuePoints);
+    RegConsoleCmd("haleresetpoints",    Command_ResetQueuePoints);
+    
+    RegConsoleCmd("nextmap",  NextMapCmd);
+    RegConsoleCmd("say",      SayCmd);
+    RegConsoleCmd("say_team", SayCmd);
+    
+    AddCommandListener(DoTaunt,     "taunt"); 
+    AddCommandListener(DoTaunt,     "+taunt");
+    AddCommandListener(DoTaunt,     "+use_action_slot_item_server");
+    AddCommandListener(DoTaunt,     "use_action_slot_item_server");
+    AddCommandListener(DoSuicide,   "explode");  
+    AddCommandListener(DoSuicide,   "kill");  
+
+    RegAdminCmd(
+        "ff2_special",  
+        Command_MakeNextSpecial, 
+        ADMFLAG_CHEATS, 
+        "Call a special to next round."
+    );
+
+    RegAdminCmd(
+        "ff2_addpoints",
+        Command_Points, 
+        ADMFLAG_CHEATS, 
+        "ff2_addpoints < target > < points > - Add queue points to user."
+    );
+
+    RegAdminCmd(
+        "ff2_point_enable",
+        Command_Point_Enable, 
+        ADMFLAG_CHEATS, 
+        "Enable CP. Only with ff2_point_type = 0"
+    );
+
+    RegAdminCmd(
+        "ff2_point_disable", 
+        Command_Point_Disable, 
+        ADMFLAG_CHEATS, 
+        "Disable CP. Only with ff2_point_type = 0"
+    );
+
+    RegAdminCmd(
+        "ff2_stop_music",
+        Command_StopMusic, 
+        ADMFLAG_CHEATS, 
+        "Stop any currently playing Boss music."
+    );
+
+    RegAdminCmd(
+        "ff2_charset",
+        Command_CharSet, 
+        ADMFLAG_CHEATS, 
+        "Stop any currently playing Boss music."
+    );
+
+    RegAdminCmd(
+        "ff2_reload_subplugins", 
+        Command_ReloadSubPlugins,
+        ADMFLAG_RCON, 
+        "Reload FF2's subplugins."
+    );
+
     FF2Cookies = RegClientCookie("ff2_cookies_mk2", "", CookieAccess_Protected);
-    /*PointCookie = RegClientCookie("hale_queue_points", "Amount of VSH/FF2 Queue points player has", CookieAccess_Public);
+    /*
+    PointCookie = RegClientCookie("hale_queue_points", "Amount of VSH/FF2 Queue points player has", CookieAccess_Public);
     MusicCookie = RegClientCookie("hale_music_setting", "BossMusic setting", CookieAccess_Public);
     VoiceCookie = RegClientCookie("hale_voice_setting", "BossVoice setting", CookieAccess_Public);
     ClassinfoCookie = RegClientCookie("hale_classinfo", "HaleClassinfo setting", CookieAccess_Public);
     */
+    
     jumpHUD = CreateHudSynchronizer();
     rageHUD = CreateHudSynchronizer();
     healthHUD = CreateHudSynchronizer();
@@ -369,7 +497,7 @@ public OnPluginStart()
 
     decl String:oldversion[64];
     GetConVarString(cvarVersion, oldversion, sizeof(oldversion));
-    if (strcmp(oldversion, ff2versiontitles[maxversion], false) != 0)
+    if (strcmp(oldversion, FF2_VERSION_TITLES[FF2_MAX_VERSION], false) != 0)
         LogError("[Freak Fortress 2] Warning: your config may be outdated. Back up your tf/cfg/sourcemod/FreakFortress2.cfg and delete it, and this plugin will generate a new one that you can then modify to your original values.");
 
     LoadTranslations("freak_fortress_2.phrases");
@@ -379,22 +507,28 @@ public OnPluginStart()
 
 public OnConfigsExecuted()
 {
-    SetConVarString(FindConVar("ff2_version"), ff2versiontitles[maxversion]);
+    //Update the version cvar
+    SetConVarString(cvarVersion, FF2_VERSION_TITLES[FF2_MAX_VERSION]);
+
+    //Grab cvar values, used for entire map
     Announce = GetConVarFloat(cvarAnnounce);
-    PointType = GetConVarInt(cvarPointType);
-    PointDelay = GetConVarInt(cvarPointDelay);
-    if (PointDelay < 0) PointDelay *= -1;
+    PointType = GetConVarInt(cvar_PointEnableCondition);
     AliveToEnable = GetConVarInt(cvarAliveToEnable);
     BossCrits = GetConVarBool(cvarCrits);
     circuitStun = GetConVarFloat(cvarCircuitStun);
+    PointDelay = GetConVarInt(cvar_PointEnableDelayPerPlayer);
+    if (PointDelay < 0) PointDelay *= -1;
 }
 
 public OnMapStart()
 {
+    //Reset flags
     chkFirstHale = 0;
     MusicTimer = INVALID_HANDLE;
     RoundCounter = 0;
     doorchecktimer = INVALID_HANDLE;
+    
+    //Check if plugin is enabled
     if (!IsFF2Map() || !GetConVarBool(cvarEnabled))
     {
         Enabled2 = false;
@@ -430,7 +564,7 @@ public OnMapStart()
         new Float:time = Announce;
         if (time > 1.0)
         {
-            CreateTimer(time, Timer_Announce,_, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
+            CreateTimer(time, Timer_Announce, _, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
         }
         CheckToChangeMapDoors();
     }
@@ -445,10 +579,10 @@ public OnMapEnd()
 {
     if (Enabled2 || Enabled)
     {
-        SetConVarInt(FindConVar("tf_arena_use_queue"),tf_arena_use_queue);
-        SetConVarInt(FindConVar("mp_teams_unbalance_limit"),mp_teams_unbalance_limit);
-        SetConVarInt(FindConVar("tf_arena_first_blood"),tf_arena_first_blood);
-        SetConVarInt(FindConVar("mp_forcecamera"),mp_forcecamera);
+        SetConVarInt(FindConVar("tf_arena_use_queue"), tf_arena_use_queue);
+        SetConVarInt(FindConVar("mp_teams_unbalance_limit"), mp_teams_unbalance_limit);
+        SetConVarInt(FindConVar("tf_arena_first_blood"), tf_arena_first_blood);
+        SetConVarInt(FindConVar("mp_forcecamera"), mp_forcecamera);
         DisableSubPlugins();
     }
 }
@@ -457,21 +591,21 @@ public AddToDownload()
 {
     Specials = 0;
     decl String:s[PLATFORM_MAX_PATH], String:i_str[4];
-    BuildPath(Path_SM,s,PLATFORM_MAX_PATH,"configs/freak_fortress_2/characters.cfg");
+    BuildPath(Path_SM, s, PLATFORM_MAX_PATH, "configs/freak_fortress_2/characters.cfg");
     if (!FileExists(s))
     {
-        LogError("[FF2] Freak Fortress 2 disables - can not found character config.");
+        LogError("[FF2] Freak Fortress 2 disabled - can not find character configuration.");
         return;
     }
     new Handle:Kv = CreateKeyValues("");
     FileToKeyValues(Kv, s);
-    for (new i=0; i <FF2CharSet; i++)
+    for (new i = 0; i < FF2CharSet; i++)
         KvGotoNextKey(Kv);
     KvGotoFirstSubKey(Kv);
     KvGetSectionName(Kv, s, 64);
-    for (new i=1; i<MAXSPECIALS; i++)
+    for (new i = 1; i < MAXSPECIALS; i++)
     {
-        IntToString(i,i_str,4);
+        IntToString(i, i_str, 4);
         KvGetString(Kv, i_str, s, PLATFORM_MAX_PATH);
         if (!s[0]) break;
         LoadCharacter(s);
@@ -635,18 +769,18 @@ public LoadCharacter(const String:character[])
     Specials++;
 }
 
-public CvarChange(Handle:convar, const String:oldValue[], const String:newValue[])
+public OnConVarChanged(Handle:convar, const String:oldValue[], const String:newValue[])
 {
-    if (convar == cvarPointDelay)
+    if (convar == cvar_PointEnableDelayPerPlayer)
     {
         PointDelay = StringToInt(newValue);
         if (PointDelay < 0) PointDelay*= -1;
     }
     else if (convar == cvarAnnounce)
         Announce = StringToFloat(newValue);
-    else if (convar == cvarPointType)
+    else if (convar == cvar_PointEnableCondition)
         PointType = StringToInt(newValue);
-    else if (convar == cvarPointDelay)
+    else if (convar == cvar_PointEnableDelayPerPlayer)
         PointDelay = StringToInt(newValue);
     else if (convar == cvarAliveToEnable)
         AliveToEnable = StringToInt(newValue);
@@ -682,7 +816,7 @@ public Action:Timer_Announce(Handle:hTimer)
             }
             case 3:
             {
-                CPrintToChatAll("{default} === Freak Fortress 2 v.%s (based on VS Saxton Hale Mode by {olive}RainBolt Dash{default} and {olive}FlaminSarge{default} edit by {olive}RavensBro{default}) === ",ff2versiontitles[maxversion]);
+                CPrintToChatAll("{default} === Freak Fortress 2 v.%s (based on VS Saxton Hale Mode by {olive}RainBolt Dash{default} and {olive}FlaminSarge{default} edit by {olive}RavensBro{default}) === ",FF2_VERSION_TITLES[FF2_MAX_VERSION]);
             }
             case 4:
             {
@@ -691,7 +825,7 @@ public Action:Timer_Announce(Handle:hTimer)
             case 5:
             {
                 announcecount = 0;
-                CPrintToChatAll("{olive}[FF2]{default} %t","ff2_last_update",ff2versiontitles[maxversion],ff2versiondates[maxversion]);
+                CPrintToChatAll("{olive}[FF2]{default} %t","ff2_last_update",FF2_VERSION_TITLES[FF2_MAX_VERSION],FF2_VERSION_DATES[FF2_MAX_VERSION]);
             }
             default: 
             {
@@ -708,7 +842,7 @@ public Action:OnGetGameDescription(String:gameDesc[64])
 {
     if (Enabled)
     {
-        Format(gameDesc, sizeof(gameDesc), "Freak Fortress 2 (%s)", ff2versiontitles[maxversion]);
+        Format(gameDesc, sizeof(gameDesc), "Freak Fortress 2 (%s)", FF2_VERSION_TITLES[FF2_MAX_VERSION]);
         return Plugin_Changed;
     }
     return Plugin_Continue;
@@ -804,7 +938,7 @@ stock bool:CheckToChangeMapDoors()
     CloseHandle(fileh);
 }
 
-public Action:event_round_start(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:Event_OnRoundStart(Handle:event, const String:name[], bool:dontBroadcast)
 {
     if (!GetConVarBool(cvarEnabled)) Enabled2 = false;
     Enabled = Enabled2;
@@ -1129,7 +1263,7 @@ public CheckArena()
     }
 }
 
-public Action:event_round_end(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:Event_OnRoundEnd(Handle:event, const String:name[], bool:dontBroadcast)
 {
     decl String:s[512];
 
@@ -1643,14 +1777,14 @@ public Action:StartRound(Handle:hTimer)
             continue;
         EquipBoss(i);
     }
-    CreateTimer(10.0,Timer_SkipFF2Panel);
+    CreateTimer(10.0,Timer_SkipCommand_FF2Panel);
     
     UpdateHealthBar();
     
     return Plugin_Handled;
 }
 
-public Action:Timer_SkipFF2Panel(Handle:hTimer)
+public Action:Timer_SkipCommand_FF2Panel(Handle:hTimer)
 {
     new bool:added[MAXPLAYERS+1];
     new i,j;
@@ -1753,7 +1887,7 @@ EquipBoss(index)
     }
 }
 
-public OnChangeClass(Handle:event, const String:name[], bool:dontBroadcast) 
+public Event_OnChangeClass(Handle:event, const String:name[], bool:dontBroadcast) 
 { 
     new iClient = GetClientOfUserId(GetEventInt(event, "userid")), 
             TFClassType:oldclass = TF2_GetPlayerClass(iClient), 
@@ -2206,7 +2340,7 @@ stock FindPlayerBack(client)
     return false;
 }
 
-public Action:event_destroy(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:Event_OnBuildingDestroyed(Handle:event, const String:name[], bool:dontBroadcast)
 {
     if (Enabled)
     {
@@ -2224,7 +2358,7 @@ public Action:event_destroy(Handle:event, const String:name[], bool:dontBroadcas
     return Plugin_Continue;
 }
 
-public Action:event_changeclass(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:Event_OnPlayerClassChange(Handle:event, const String:name[], bool:dontBroadcast)
 {
     if (Enabled)
         CreateTimer(0.1,Timer_changeclass,GetEventInt(event, "userid"));
@@ -2245,7 +2379,7 @@ public Action:Timer_changeclass(Handle:hTimer,any:userid)
     return Plugin_Continue;
 }
 
-public Action:event_uberdeployed(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:Event_OnUberDeployed(Handle:event, const String:name[], bool:dontBroadcast)
 {
     if (!Enabled)
         return Plugin_Continue;
@@ -2547,7 +2681,7 @@ public OnClientPutInServer(client)
     LastClass[client]=TFClass_Unknown;
 }
 
-public Action:event_player_spawn(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:Event_OnPlayerSpawn(Handle:event, const String:name[], bool:dontBroadcast)
 {
     if (!Enabled)
         return Plugin_Continue;
@@ -3016,7 +3150,7 @@ public Action:DoSuicide(client, const String:command[], argc)
 }
 
 
-public Action:event_player_death(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:Event_OnPlayerDeath(Handle:event, const String:name[], bool:dontBroadcast)
 {
     new client = GetClientOfUserId(GetEventInt(event, "userid"));
     if (Enabled && client && GetClientHealth(client) <= 0 && FF2RoundState == 1)
@@ -3153,7 +3287,7 @@ public Action:Timer_Damage(Handle:hTimer,any:id)
     return Plugin_Continue;
 }
 
-public Action:event_deflect(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:Event_OnProjectileDeflected(Handle:event, const String:name[], bool:dontBroadcast)
 {
     if (!Enabled || GetEventInt(event, "weaponid"))
         return Plugin_Continue;
@@ -3167,7 +3301,7 @@ public Action:event_deflect(Handle:event, const String:name[], bool:dontBroadcas
     return Plugin_Continue;
 }
 
-public Action:event_jarate(UserMsg:msg_id, Handle:bf, const players[], playersNum, bool:reliable, bool:init)
+public Action:Event_OnPlayerJarated(UserMsg:msg_id, Handle:bf, const players[], playersNum, bool:reliable, bool:init)
 {
     new client = BfReadByte(bf);
     new victim = BfReadByte(bf);
@@ -3279,7 +3413,7 @@ public Action:Timer_DrawGame(Handle:timer)
     return Plugin_Continue;
 }
 
-public Action:event_hurt(Handle:event, const String:name[], bool:dontBroadcast)
+public Action:Event_OnPlayerHurt(Handle:event, const String:name[], bool:dontBroadcast)
 {
     if (!Enabled)
         return Plugin_Continue;
@@ -4376,7 +4510,7 @@ public QueuePanelH(Handle:menu, MenuAction:action, param1, param2)
 }
 
 
-public Action:QueuePanelCmd(client, Args)
+public Action:Command_QueuePanel(client, Args)
 {
     if (!Enabled2)
         return Plugin_Continue;
@@ -4428,7 +4562,7 @@ public Action:QueuePanelCmd(client, Args)
     return Plugin_Handled;
 }
 
-public Action:ResetQueuePointsCmd(client, args)
+public Action:Command_ResetQueuePoints(client, args)
 {
     if (!Enabled2)
         return Plugin_Continue;
@@ -4570,7 +4704,7 @@ DoOverlay(client,const String:overlay[])
     ClientCommand(client, "r_screenoverlay \"%s\"", overlay);
     SetCommandFlags("r_screenoverlay", GetCommandFlags("r_screenoverlay") & FCVAR_CHEAT);
 }
-public FF2PanelH(Handle:menu, MenuAction:action, param1, param2)
+public Command_FF2PanelH(Handle:menu, MenuAction:action, param1, param2)
 {
     if (action == MenuAction_Select)
     {
@@ -4581,9 +4715,9 @@ public FF2PanelH(Handle:menu, MenuAction:action, param1, param2)
             case 2:
                 HelpPanel2(param1);
             case 3:
-                NewPanel(param1, maxversion);
+                NewPanel(param1, FF2_MAX_VERSION);
             case 4:
-                QueuePanelCmd(param1,0);
+                Command_QueuePanel(param1,0);
             case 5:
                 MusicTogglePanel(param1);
             case 6:
@@ -4595,7 +4729,7 @@ public FF2PanelH(Handle:menu, MenuAction:action, param1, param2)
     }
 }
   
-public Action:FF2Panel(client, args)
+public Action:Command_FF2Panel(client, args)
 {
     if (!Enabled2 || !IsValidClient(client, false))
         return Plugin_Continue;
@@ -4621,7 +4755,7 @@ public Action:FF2Panel(client, args)
     DrawPanelItem(panel, s);
     Format(s,256,"%t","menu_6");
     DrawPanelItem(panel, s);
-    SendPanelToClient(panel, client, FF2PanelH, 9001);
+    SendPanelToClient(panel, client, Command_FF2PanelH, 9001);
     CloseHandle(panel);
     return Plugin_Handled;
 }
@@ -4641,8 +4775,8 @@ public NewPanelH(Handle:menu, MenuAction:action, param1, param2)
             }
             case 2:
             {
-                if (curHelp[param1] >= maxversion)
-                    NewPanel(param1, maxversion);
+                if (curHelp[param1] >= FF2_MAX_VERSION)
+                    NewPanel(param1, FF2_MAX_VERSION);
                 else
                     NewPanel(param1, ++curHelp[param1]);
             }
@@ -4650,10 +4784,10 @@ public NewPanelH(Handle:menu, MenuAction:action, param1, param2)
         }
     }
 }
-public Action:NewPanelCmd(client, args)
+public Action:Command_NewPanel(client, args)
 {
     if (!IsValidClient(client)) return Plugin_Continue;
-    NewPanel(client, maxversion);
+    NewPanel(client, FF2_MAX_VERSION);
     return Plugin_Handled;
 }
 public Action:NewPanel(client, versionindex)
@@ -4664,7 +4798,7 @@ public Action:NewPanel(client, versionindex)
     new Handle:panel = CreatePanel();
     decl String:s[90];
     SetGlobalTransTarget(client);
-    Format(s,90," = %t: = ","whatsnew", ff2versiontitles[versionindex],ff2versiondates[versionindex]);
+    Format(s,90," = %t: = ","whatsnew", FF2_VERSION_TITLES[versionindex],FF2_VERSION_DATES[versionindex]);
     SetPanelTitle(panel, s);
     FindVersionData(panel, versionindex);
     if (versionindex > 0)
@@ -4672,7 +4806,7 @@ public Action:NewPanel(client, versionindex)
     else
         Format(s,90, "%t", "noolder");
     DrawPanelItem(panel, s);  
-    if (versionindex < maxversion)
+    if (versionindex < FF2_MAX_VERSION)
         Format(s,90, "%t", "newer");
     else
         Format(s,90, "%t", "nonewer");
@@ -4860,7 +4994,7 @@ public ClassinfoTogglePanelH(Handle:menu, MenuAction:action, param1, param2)
     }
 }
 
-public Action:HelpPanel2Cmd(client, args)
+public Action:Command_HelpPanel2(client, args)
 {
     if (!IsValidClient(client)) return Plugin_Continue;
     HelpPanel2(client);
@@ -4932,7 +5066,7 @@ public Action:HelpPanelBoss(index)
     return Plugin_Continue;
 }
 
-public Action:MusicTogglePanelCmd(client, args)
+public Action:Command_MusicTogglePanel(client, args)
 {
     if (!IsValidClient(client)) return Plugin_Continue;
     MusicTogglePanel(client);
@@ -4977,7 +5111,7 @@ public MusicTogglePanelH(Handle:menu, MenuAction:action, param1, param2)
         }
     }
 }
-public Action:VoiceTogglePanelCmd(client, args)
+public Action:Command_VoiceTogglePanel(client, args)
 {
     if (!IsValidClient(client)) return Plugin_Continue;
     VoiceTogglePanel(client);
@@ -5125,12 +5259,12 @@ public NextmapPanelH2(Handle:menu,num_votes,num_clients,const client_info[][2],n
     CPrintToChatAll("%t","nextmap_charset",nextmap,FF2CharSetStr);
 }
 
-public CvarChangeNextmap(Handle:convar, const String:oldValue[], const String:newValue[])
+public OnNextmapChanged(Handle:convar, const String:oldValue[], const String:newValue[])
 {   
-    CreateTimer(0.1,Timer_CvarChangeNextmap);
+    CreateTimer(0.1,Timer_OnNextmapChanged);
 }
 
-public Action:Timer_CvarChangeNextmap(Handle:hTimer)
+public Action:Timer_OnNextmapChanged(Handle:hTimer)
 {       
     if (IsVoteInProgress())
         return Plugin_Continue;
@@ -5733,7 +5867,7 @@ UpdateHealthBar()
     
     //PrintToChatAll("Updating healthbar to %d", healthPercent);
     
-    SetEntProp(g_healthBar, Prop_Send, HEALTHBAR_PROPERTY, healthPercent);
+    SetEntProp(g_healthBar, Prop_Send, HEALTHBAR_PERCENT_PROP, healthPercent);
 }
 
 public OnTakeDamagePost(client, attacker, inflictor, Float:damage, damagetype)
@@ -5779,9 +5913,7 @@ public OnEntityCreated(entity, const String:classname[])
 public OnEntityDestroyed(entity)
 {
     if (entity == -1)
-    {
         return;
-    }
     
     if (entity == g_Monoculus)
     {
@@ -5813,7 +5945,7 @@ public HealthbarEnableChanged(Handle:convar, const String:oldValue[], const Stri
     }
     else if (g_Monoculus == -1)
     {
-        SetEntProp(g_healthBar, Prop_Send, HEALTHBAR_PROPERTY, 0);
+        SetEntProp(g_healthBar, Prop_Send, HEALTHBAR_PERCENT_PROP, 0);
     }
 }
 

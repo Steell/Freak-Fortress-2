@@ -19,7 +19,7 @@
 
 enum
 {
-	FF2RoundState_Disabled = -1,
+	FF2RoundState_Disabled=-1,
 	FF2RoundState_RoundStart,
 	FF2RoundState_Running,
 	FF2RoundState_RoundEnd,
@@ -54,7 +54,7 @@ native FF2_GetRoundState();
  * @param index 		Index of boss (0, as usual, but, for example, companion like Seeldier has 1).
  * @return		    	Userid of boss (-1 if Boss does not exists)
  */
-native FF2_GetBossUserId( index = 0 );
+native FF2_GetBossUserId(index=0);
 
 /**
  * Gets UserID of current Boss
@@ -62,14 +62,14 @@ native FF2_GetBossUserId( index = 0 );
  * @param index 		Index of boss (0, as usual, but, for example, companion like Seeldier has 1).
  * @return		    	Client id of boss (-1 if Boss does not exists)
  */
-native FF2_GetBossClientId( index = 0 );
+native FF2_GetBossClientId(index=0);
 
 /**
  * Gets BossIndex of client
  *
  * @return		    	Boss Index of that client. If client is not boss, returns -1
  */
-native FF2_GetBossIndex( client );
+native FF2_GetBossIndex(client);
 
 /**
  * Gets current team of Boss
@@ -89,7 +89,7 @@ native FF2_GetBossTeam();
  *								Don't forget: 1st chatacter from chatacters.cfg is _0th_ here
  * @return		    		true if Special exists, false if not
  */
-native bool:FF2_GetBossSpecial( index = 0, String:buffer[], bufferlen, isNumOfSpecial = 0);
+native bool:FF2_GetBossSpecial(index=0, String:buffer[], bufferlen, isNumOfSpecial=0);
 
 /**
  * Gets Max Health of current Boss
@@ -97,7 +97,7 @@ native bool:FF2_GetBossSpecial( index = 0, String:buffer[], bufferlen, isNumOfSp
  * @param index 		Index of boss (0, as usual, but, for example, companion like Seeldier has 1)
  * @return		    	Max Health of Boss
  */
-native FF2_GetBossMaxHealth( index = 0 );
+native FF2_GetBossMaxHealth(index=0);
 
 /**
  * Gets charge meter value of current Boss
@@ -108,7 +108,7 @@ native FF2_GetBossMaxHealth( index = 0 );
  *							1 - as usual, used for brave jump or teleport
  *							0 - other charged abilities
  */
-native Float:FF2_GetBossCharge( index, slot );
+native Float:FF2_GetBossCharge(index, slot);
 
 /**
  * Sets charge meter value of current Boss
@@ -120,7 +120,7 @@ native Float:FF2_GetBossCharge( index, slot );
  *							0 - other charged abilities
  * @param value			New value of charge
  */
-native FF2_SetBossCharge( index, slot, Float:value );
+native FF2_SetBossCharge(index, slot, Float:value);
 
 /**
  * Gets damage, dealed by this client to boss
@@ -128,7 +128,7 @@ native FF2_SetBossCharge( index, slot, Float:value );
  * @param client 		Client's index.
  * @return		    	Damage, dealed by this client.
  */
-native FF2_GetClientDamage( client );
+native FF2_GetClientDamage(client);
 
 /**
  * Gets Boss' rage distance
@@ -138,7 +138,7 @@ native FF2_GetClientDamage( client );
  * @param ability_name 	Name of ability (use null string if you want get boss' global "ragedist" value)
  * @return		    	
  */
-native Float:FF2_GetRageDist( index = 0 , const String:plugin_name[]="", const String:ability_name[]="" );
+native Float:FF2_GetRageDist(index=0 , const String:plugin_name[]="", const String:ability_name[]="");
 
 /**
  * Does Boss have ability?
@@ -148,7 +148,7 @@ native Float:FF2_GetRageDist( index = 0 , const String:plugin_name[]="", const S
  * @param ability_name 	Name of ability 
  * @return				true if Boss has this ability. false is hasn't
  */
-native bool:FF2_HasAbility( index, const String:plugin_name[], const String:ability_name[] );
+native bool:FF2_HasAbility(index, const String:plugin_name[], const String:ability_name[]);
 
 /**
  * Does Boss have ability in the current subplugin?
@@ -157,7 +157,7 @@ native bool:FF2_HasAbility( index, const String:plugin_name[], const String:abil
  * @param ability_name 	Name of ability 
  * @return				true if Boss has this ability. false is hasn't
  */
-native bool:FF2_HasAbilityEx( index, const String:ability_name[] );
+native bool:FF2_HasAbilityEx(index, const String:ability_name[]);
 
 /**
  * Is Boss has ability?
@@ -175,7 +175,7 @@ native bool:FF2_HasAbilityEx( index, const String:ability_name[] );
  *							2 - by reload button
  * @noreturn
  */
-native FF2_DoAbility(index, const String:plugin_name[], const String:ability_name[], slot, buttonmode = 0);
+native FF2_DoAbility(index, const String:plugin_name[], const String:ability_name[], slot, buttonmode=0);
 
 
 /**
@@ -188,7 +188,7 @@ native FF2_DoAbility(index, const String:plugin_name[], const String:ability_nam
  * @param defvalue 		Returns if argument is not defined
  * @return				Value of argument
  */
-native FF2_GetAbilityArgument( index, const String:plugin_name[], const String:ability_name[], argument, deflavue = 0 );
+native FF2_GetAbilityArgument(index, const String:plugin_name[], const String:ability_name[], argument, deflavue=0);
 
 /**
  * Gets float argument of ability
@@ -200,7 +200,7 @@ native FF2_GetAbilityArgument( index, const String:plugin_name[], const String:a
  * @param defvalue 		Returns if argument is not defined
  * @return				Value of argument
  */
-native Float:FF2_GetAbilityArgumentFloat( index, const String:plugin_name[], const String:ability_name[], argument, Float:deflavue = 0.0);
+native Float:FF2_GetAbilityArgumentFloat(index, const String:plugin_name[], const String:ability_name[], argument, Float:deflavue=0.0);
 
 /**
  * Gets string argument of ability
@@ -213,7 +213,7 @@ native Float:FF2_GetAbilityArgumentFloat( index, const String:plugin_name[], con
  * @param bufferlen		Length of buffer string
  * @noreturn
  */
-native FF2_GetAbilityArgumentString( index, const String:plugin_name[], const String:ability_name[], argument, String:buffer[], bufferlen);
+native FF2_GetAbilityArgumentString(index, const String:plugin_name[], const String:ability_name[], argument, String:buffer[], bufferlen);
 
 /**
  * Starts random boss' sound from his config file
@@ -225,7 +225,7 @@ native FF2_GetAbilityArgumentString( index, const String:plugin_name[], const St
  * @param slot			Only for "sound_ability": slot of ability.
  * @return				true if sound has been found. false if not
  */
-native bool:FF2_RandomSound( const String: keyvalue[], String: str[], length, index = 0, slot = 0 );
+native bool:FF2_RandomSound(const String: keyvalue[], String: str[], length, index=0, slot=0);
 
 /**
  * Stops boss' music for all players
@@ -233,7 +233,7 @@ native bool:FF2_RandomSound( const String: keyvalue[], String: str[], length, in
  * @param index			Client's index. 0 is "for all".
  * @noreturn
  */
-native FF2_StopMusic( client = 0 );
+native FF2_StopMusic(client=0);
 
 /**
  * Gets keyvalues handle of Boss
@@ -244,7 +244,7 @@ native FF2_StopMusic( client = 0 );
  *								Don't forget: 1st chatacter from chatacters.cfg is _0th_ here
  * @return					Handle of Boss' keyvalues
  */
-native Handle:FF2_GetSpecialKV( index , isNumOfSpecial = 0);
+native Handle:FF2_GetSpecialKV(index , isNumOfSpecial=0);
 
 /**
  * Gets client's flags for FF2 
@@ -252,7 +252,7 @@ native Handle:FF2_GetSpecialKV( index , isNumOfSpecial = 0);
  * @param index			Client's index
  * @return				Flags
  */
-native FF2_GetFF2flags( client );
+native FF2_GetFF2flags(client);
 
 /**
  * Sets client's flags for FF2 
@@ -261,7 +261,7 @@ native FF2_GetFF2flags( client );
  * @param flags			New values
  * @noreturn
  */
-native FF2_SetFF2flags( index, flags );
+native FF2_SetFF2flags(index, flags);
 
 /**
  * Gets client's queue points
@@ -269,7 +269,7 @@ native FF2_SetFF2flags( index, flags );
  * @param index			Client's index
  * @return				Client's queue points
  */
-native FF2_GetQueuePoints( client );
+native FF2_GetQueuePoints(client);
 
 /**
  * Sets client's queue points
@@ -278,7 +278,7 @@ native FF2_GetQueuePoints( client );
  * @param value			New value of client's queue points.
  * @noreturn
  */
-native FF2_SetQueuePoints( client, value );
+native FF2_SetQueuePoints(client, value);
 
 /**
  * FF2_OnAbility:
@@ -298,10 +298,10 @@ native FF2_SetQueuePoints( client, value );
  * @return		    	Plugin_Stop can not preve Ability. Use FF2_PreAbility with enabled = false
  */
  // In 1.08 or newer, only use this if you're intercepting abilities from other plugins, otherwise use FF_PreAbilityEx
-forward FF2_PreAbility( index, const String:plugin_name[], const String:ability_name[], action, &enabled = true );
+forward FF2_PreAbility(index, const String:plugin_name[], const String:ability_name[], action, &enabled=true);
 
 // To be deprecated in 1.08 in favor of FF2_OnAbilityEx and FF2_RegisterSubplugin, return type ignored either way
-forward Action:FF2_OnAbility( index, const String:plugin_name[], const String:ability_name[], action );
+forward Action:FF2_OnAbility(index, const String:plugin_name[], const String:ability_name[], action);
 
 // Coming soon
 /**
@@ -353,7 +353,7 @@ forward Action:FF2_OnAbility( index, const String:plugin_name[], const String:ab
  * @param damage 		Damage by the trigger_hurt, also you can change it.
  * @return		    	Plugin_Stop will prevent forward, Plugin_Changed will change damage;
  */
-forward Action:FF2_OnTriggerHurt( index, triggerhurt, &Float:damage);
+forward Action:FF2_OnTriggerHurt(index, triggerhurt, &Float:damage);
 
 /**
  * Begins when Boss' music begins
@@ -362,14 +362,14 @@ forward Action:FF2_OnTriggerHurt( index, triggerhurt, &Float:damage);
  * @param time			Length of music
  * @return		    	Plugin_Stop will prevent music, Plugin_Changed will change it;
  */
-forward Action:FF2_OnMusic( String:path[], &Float:time );
+forward Action:FF2_OnMusic(String:path[], &Float:time);
 
 
 /**
  * @deprecated		No longer called. Use FF2_OnSpecialSelectedEx.
  */
 #pragma deprecated		No longer called. Use FF2_OnSpecialSelectedEx.
-forward Action:FF2_OnSpecialSelected( index, &SpecialNum, String:SpecialName[]);
+forward Action:FF2_OnSpecialSelected(index, &SpecialNum, String:SpecialName[]);
 
 /**
  * Begins when FF2 picks Special for Boss
@@ -379,7 +379,7 @@ forward Action:FF2_OnSpecialSelected( index, &SpecialNum, String:SpecialName[]);
  * @return		    	You can NOT use Plugin_Stop to prevent this, but
  *							you can change SpecialName and use Plugin_Changed to change Special;
  */
-forward Action:FF2_OnSpecialSelectedEx( index, &SpecialNum, String:SpecialName[]);
+forward Action:FF2_OnSpecialSelectedEx(index, &SpecialNum, String:SpecialName[]);
 
 /**
  * Begins when FF2 adds queue points.
@@ -388,13 +388,13 @@ forward Action:FF2_OnSpecialSelectedEx( index, &SpecialNum, String:SpecialName[]
  *						Use array to get and\or change additional points.
  * @return		    	Plugin_Stop will prevent this (do you really need it?), Plugin_Changed will change it;
  */
-forward Action:FF2_OnAddQueuePoints( add_points[MAXPLAYERS+1] );
+forward Action:FF2_OnAddQueuePoints(add_points[MAXPLAYERS+1]);
 
 /**
  * @deprecated		No longer called. Use FF2_OnLoadCharacterSetEx.
  */
 #pragma deprecated		No longer called. Use FF2_OnLoadCharacterSetEx.
-forward Action:FF2_OnLoadCharacterSet( CharSetNum, String:CharSetName[] );
+forward Action:FF2_OnLoadCharacterSet(CharSetNum, String:CharSetName[]);
 
 /**
  * Begins when FF2 picks Character Set for map
@@ -404,7 +404,7 @@ forward Action:FF2_OnLoadCharacterSet( CharSetNum, String:CharSetName[] );
  *							you can change CharSetName and use Plugin_Changed to change Special;
  *							if you want to change CharSetNum, then set CharSetName to null string ("").
  */
-forward Action:FF2_OnLoadCharacterSetEx(String:CharSetName[] );
+forward Action:FF2_OnLoadCharacterSetEx(String:CharSetName[]);
 
 /**
  * Wrapper around EmitSoundToAll that uses the FF2 sound exception system
@@ -424,19 +424,19 @@ forward Action:FF2_OnLoadCharacterSetEx(String:CharSetName[] );
  * @param soundtime		Alternate time to play sound for.
  * @noreturn
  */
-native FF2_EmitSoundToAllExcept(SoundExcept:exceptiontype = SoundExcept_Music,
+native FF2_EmitSoundToAllExcept(SoundExcept:exceptiontype=SoundExcept_Music,
 				const String:sample[],
-				entity = SOUND_FROM_PLAYER,
-				channel = SNDCHAN_AUTO,
-				level = SNDLEVEL_NORMAL,
-				flags = SND_NOFLAGS,
-				Float:volume = SNDVOL_NORMAL,
-				pitch = SNDPITCH_NORMAL,
-				speakerentity = -1,
-				const Float:origin[3] = NULL_VECTOR,
-				const Float:dir[3] = NULL_VECTOR,
-				bool:updatePos = true,
-				Float:soundtime = 0.0);
+				entity=SOUND_FROM_PLAYER,
+				channel=SNDCHAN_AUTO,
+				level=SNDLEVEL_NORMAL,
+				flags=SND_NOFLAGS,
+				Float:volume=SNDVOL_NORMAL,
+				pitch=SNDPITCH_NORMAL,
+				speakerentity=-1,
+				const Float:origin[3]=NULL_VECTOR,
+				const Float:dir[3]=NULL_VECTOR,
+				bool:updatePos=true,
+				Float:soundtime=0.0);
 
 public SharedPlugin:__pl_FF2 =
 {
