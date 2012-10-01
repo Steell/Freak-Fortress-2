@@ -4303,41 +4303,58 @@ stock Float:GetAbilityArgumentFloat(index,const String:plugin_name[],const Strin
     return 0.0;
 }
 
-stock GetAbilityArgumentString(index,const String:plugin_name[],const String:ability_name[],arg,String:buffer[],buflen,const String:defvalue[] = "")
+//Gets the ability arguments for the given ability name for the given boss.
+stock GetAbilityArgumentString(index, const String:plugin_name[], const String:ability_name[], arg, String:buffer[], buflen, const String:defvalue[] = "")
 {   
+    //If input is invalid, return the empty string.
     if (index == -1 || Special[index] == -1 || !BossKV[Special[index]])
     {
-        strcopy(buffer,buflen,"");
+        strcopy(buffer,buflen,"");//???? I believe "" should be replaced with 'defValue'.
         return;
     }
+    //Reset the config file reader for the given boss.
     KvRewind(BossKV[Special[index]]);
     decl String:s[10];
-    for(new i = 1; i < MAXRANDOMS; i++)
+    new specialIndex = Special[index];
+    //Iterate through all possible abilities.
+    for(new i = 1; i < MAXRANDOMS; i++) //???? Should it be <= MAXRANDOMS since it starts at 1 and not 0?
     {
-        Format(s,10,"ability%i",i);
-        if (KvJumpToKey(BossKV[Special[index]],s))
+        //Jump to the current ability index if it exists.
+        Format(s, 10, "ability%i", i);
+        if (KvJumpToKey(BossKV[specialIndex], s))
         {
+            //Get the current ability name.
             decl String:ability_name2[64];
-            KvGetString(BossKV[Special[index]], "name",ability_name2,64);
-            if (strcmp(ability_name,ability_name2))
+            KvGetString(BossKV[specialIndex], "name", ability_name2, 64);
+            
+            //If the given ability isn't the current ability, skip this iteration (I think???? What's with the KVGoBack?).
+            if (strcmp(ability_name, ability_name2))
             {
-                KvGoBack(BossKV[Special[index]]);
+                KvGoBack(BossKV[specialIndex]);
                 continue;
             }
+            
+            //Get the plugin name from the boss config data.
             decl String:plugin_name2[64];
-            KvGetString(BossKV[Special[index]], "plugin_name",plugin_name2,64);
-            if (plugin_name[0] && plugin_name2[0] && strcmp(plugin_name,plugin_name2))
+            KvGetString(BossKV[specialIndex], "plugin_name", plugin_name2, 64);
+            //If both the given plugin name and the current plugin name aren't empty, and
+            //  the current plugin name is equal to the given plugin name, skip this iteration.
+            if (plugin_name[0] && plugin_name2[0] && strcmp(plugin_name, plugin_name2))
             {
-                KvGoBack(BossKV[Special[index]]);
+                //???? What's with the KVGoBack?
+                KvGoBack(BossKV[specialIndex]);
                 continue;
             }
-            Format(s,10,"arg%i",arg);
-            KvGetString(BossKV[Special[index]], s,buffer,buflen,defvalue);
+            
+            //Put the ability into the buffer.
+            //???? i was being used as the ability number and now it's being used as the arg number?
+            Format(s, 10, "arg%i", arg);
+            KvGetString(BossKV[specialIndex], s, buffer, buflen, defvalue);
         }
     }
 }
 
-stock bool:RandomSound(const String: keyvalue[], String: str[],length,index = 0)
+stock bool:RandomSound(const String: keyvalue[], String: str[],length, index = 0)
 {
     strcopy(str,1,"");
     if (index<0 || Special[index]<0 || !BossKV[Special[index]])
@@ -4365,7 +4382,7 @@ stock bool:RandomSound(const String: keyvalue[], String: str[],length,index = 0)
     return true;
 }
 
-stock bool:RandomSoundAbility(const String: keyvalue[], String: str[],length,index = 0,slot = 0)
+stock bool:RandomSoundAbility(const String: keyvalue[], String: str[],length, index = 0, slot = 0)
 {
     if (index == -1 || Special[index] == -1 || !BossKV[Special[index]])
         return false;
@@ -5631,6 +5648,7 @@ public Native_HasAbility(Handle:plugin,numParams)
 }
 
 //native FF2_DoAbility(index, const String:plugin_name[], const String:ability_name[], slot, buttonmode = 0)
+//Uses the given ability.
 public Native_DoAbility(Handle:plugin,numParams)
 {
     decl String:plugin_name[64];    
@@ -5641,6 +5659,9 @@ public Native_DoAbility(Handle:plugin,numParams)
     UseAbility(ability_name,plugin_name, GetNativeCell(1), GetNativeCell(4), GetNativeCell(5));
 }
 
+//FF2_GetAbilityArgument(int: boss index, const String: plugin with this ability, const String: ability name,
+//                       int: number of arguments, default value if ability is not defined.
+//Gets the given ability argument.
 public Native_GetAbilityArgument(Handle:plugin,numParams)
 { 
     decl String:plugin_name[64];    
@@ -5651,16 +5672,23 @@ public Native_GetAbilityArgument(Handle:plugin,numParams)
     return GetAbilityArgument(GetNativeCell(1),plugin_name,ability_name,GetNativeCell(4),GetNativeCell(5));
 }
 
+//FF2_GetAbilityArgumentFloat(int: boss index, const String: plugin with this ability, const String: ability name,
+//                            int: number of arguments, Float: default value if argument is undefined)
+//Gets the given ability argument as a float.
 public Native_GetAbilityArgumentFloat(Handle:plugin,numParams)
 { 
     decl String:plugin_name[64];    
     decl String:ability_name[64];   
-    GetNativeString(2,plugin_name,64);
-    GetNativeString(3,ability_name,64);
+    GetNativeString(2, plugin_name, 64);
+    GetNativeString(3, ability_name, 64);
     //return _:GetAbilityArgumentFloat(index,plugin_name,ability_name,argument,defvalue);
-    return _:GetAbilityArgumentFloat(GetNativeCell(1),plugin_name,ability_name,GetNativeCell(4),GetNativeCell(5));
+    return _:GetAbilityArgumentFloat(GetNativeCell(1), plugin_name, ability_name, GetNativeCell(4), GetNativeCell(5));
 }
 
+//FF2_GetAbilityArgumentString(int: boss index, const String: plugin with this ability, const String: ability name,
+//                             int: number of arguments, String: result buffer, int: result buffer length)
+// index, plugin, ability, numbArguments, return buffer, buffer length
+//Gets the given ability argument as a string.
 public Native_GetAbilityArgumentString(Handle:plugin,numParams)
 { 
     decl String:plugin_name[64];    
@@ -5674,6 +5702,7 @@ public Native_GetAbilityArgumentString(Handle:plugin,numParams)
     SetNativeString(5,s,dstrlen);   
 }
 
+//Gets the damage dealth to the given client boss.
 public Native_GetDamage(Handle:plugin,numParams)
 {
     new client = GetNativeCell(1);
@@ -5682,32 +5711,50 @@ public Native_GetDamage(Handle:plugin,numParams)
     return Damage[client];
 }
 
-public Native_GetFF2flags(Handle:plugin,numParams)
+//FF2_GetFF2flags(int: client index)
+//Gets the given client's flags.
+//The flags are single bit values, accessed using bitwise operators.
+public Native_GetFF2flags(Handle:plugin, numParams)
 {
     return FF2flags[GetNativeCell(1)];
 }
 
+//FF2_SetFF2flags(int: client index, int: newFlags)
+//Sets the given client's flags.
+//The flags are single bit values, accessed using bitwise operators.
 public Native_SetFF2flags(Handle:plugin, numParams)
 {
-    FF2flags[GetNativeCell(1)]=GetNativeCell(2);
+    FF2flags[GetNativeCell(1)] = GetNativeCell(2);
 }
 
+//FF2_GetQueuePoints(int: client index)
+//Gets the given client's queue points.
+//Queue points are the likelihood that a given player will be the next boss.
 public Native_GetQueuePoints(Handle:plugin, numParams)
 {
     return GetClientQueuePoints(GetNativeCell(1));
 }
 
+//FF2_SetQueuePoints(int: client index, int: new value)
+//Sets the given client's queue points to the given value.
+//Queue points are the likelihood that a given player will be the next boss.
 public Native_SetQueuePoints(Handle:plugin, numParams)
 {
-    SetClientQueuePoints(GetNativeCell(1),GetNativeCell(2));
+    SetClientQueuePoints(GetNativeCell(1), GetNativeCell(2));
 }
 
+//FF2_GetSpecialKV(int: boss index,
+//                 bool: is the index a special index? (If not, then it is a boss index))
+//Gets the KeyValue config data for the given special.
 public Native_GetSpecialKV(Handle:plugin, numParams)
 {
     new index = GetNativeCell(1);
     new bool:isNumOfSpecial = bool:GetNativeCell(2);
+    
+    //If the given index is already the "special" index, just grab the right KV data.
     if (isNumOfSpecial)
     {
+        //Check sanity of input.
         if (index!= -1 && index < Specials)
         {
             if (BossKV[index] != INVALID_HANDLE)
@@ -5715,17 +5762,21 @@ public Native_GetSpecialKV(Handle:plugin, numParams)
             return _:BossKV[index];
         }
     }
+    //Otherwise, use the "Special" array to take the boss index and find the index for the BossKV array.
     else
     {
-        if (index!= -1 && index < MaxClients+1 && Special[index]!= -1 && Special[index] < MAXSPECIALS)
+        new KVIndex = Special[index];
+        //Check sanity of input.
+        if (index != -1 && index < MaxClients + 1 && KVIndex != -1 && KVIndex < MAXSPECIALS)
         {
-            if (BossKV[Special[index]] != INVALID_HANDLE)
-                KvRewind(BossKV[Special[index]]);
-            return _:BossKV[Special[index]];
+            if (BossKV[KVIndex] != INVALID_HANDLE)
+                KvRewind(BossKV[KVIndex]);
+            return _:BossKV[KVIndex];
         }
     }
     return _:INVALID_HANDLE;
 }
+
 
 //Starts playing the boss's music.
 public Native_StartMusic(Handle:plugin, numParams)
@@ -5733,6 +5784,7 @@ public Native_StartMusic(Handle:plugin, numParams)
     Timer_MusicPlay(INVALID_HANDLE,GetNativeCell(1));
 }
 
+//FF2_StopMusic(int: client index or 0 for all)
 //Stops the current boss's music from playing.
 public Native_StopMusic(Handle:plugin, numParams)
 {
@@ -5763,6 +5815,8 @@ public Native_StopMusic(Handle:plugin, numParams)
     }   
 }
 
+//FF2_RandomSound(const String: sound container, String: sound path buffer, int: buffer length,
+//                int: boss index, int: ability slot for "sound_ability")
 //Plays a random sound for the given boss using the given ability.
 public Native_RandomSound(Handle:plugin, numParams)
 {

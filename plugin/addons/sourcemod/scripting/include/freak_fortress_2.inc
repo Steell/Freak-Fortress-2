@@ -185,10 +185,10 @@ native FF2_DoAbility(index, const String:plugin_name[], const String:ability_nam
  * @param plugin_name	Name of plugin with this ability
  * @param ability_name 	Name of ability
  * @param argument 		Number of argument 
- * @param defvalue 		Returns if argument is not defined
+ * @param defvalue 		Returns if ability is not defined
  * @return				Value of argument
  */
-native FF2_GetAbilityArgument(index, const String:plugin_name[], const String:ability_name[], argument, deflavue=0);
+native FF2_GetAbilityArgument(index, const String:plugin_name[], const String:ability_name[], argument, deflavue = 0);
 
 /**
  * Gets float argument of ability
@@ -197,10 +197,10 @@ native FF2_GetAbilityArgument(index, const String:plugin_name[], const String:ab
  * @param plugin_name	Name of plugin with this ability
  * @param ability_name 	Name of ability
  * @param argument 		Number of argument 
- * @param defvalue 		Returns if argument is not defined
+ * @param defvalue 		Returns if ability is not defined
  * @return				Value of argument
  */
-native Float:FF2_GetAbilityArgumentFloat(index, const String:plugin_name[], const String:ability_name[], argument, Float:deflavue=0.0);
+native Float:FF2_GetAbilityArgumentFloat(index, const String:plugin_name[], const String:ability_name[], argument, Float:deflavue = 0.0);
 
 /**
  * Gets string argument of ability
@@ -225,7 +225,7 @@ native FF2_GetAbilityArgumentString(index, const String:plugin_name[], const Str
  * @param slot			Only for "sound_ability": slot of ability.
  * @return				true if sound has been found. false if not
  */
-native bool:FF2_RandomSound(const String: keyvalue[], String: str[], length, index=0, slot=0);
+native bool:FF2_RandomSound(const String: keyvalue[], String: str[], length, index = 0, slot = 0);
 
 /**
  * Stops boss' music for all players
@@ -233,7 +233,7 @@ native bool:FF2_RandomSound(const String: keyvalue[], String: str[], length, ind
  * @param index			Client's index. 0 is "for all".
  * @noreturn
  */
-native FF2_StopMusic(client=0);
+native FF2_StopMusic(client = 0);
 
 /**
  * Gets keyvalues handle of Boss
