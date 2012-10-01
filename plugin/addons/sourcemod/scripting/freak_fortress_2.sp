@@ -3968,24 +3968,55 @@ stock SwitchToOtherWeapon(client)
     if (!(ammo == 0 && clip <= 0)) SetEntPropEnt(client, Prop_Send, "m_hActiveWeapon", weapon);
     else SetEntPropEnt(client, Prop_Send, "m_hActiveWeapon", GetPlayerWeaponSlot(client, TFWeaponSlot_Secondary));
 }
+
+// Int -> Int
+// Given a client,
 stock FindTeleOwner(client)
 {
-    if (!IsValidClient(client)) return -1;
-    if (!IsPlayerAlive(client)) return -1;
+    // If the client isn't valid, they don't own a teleporter
+    if (!IsValidClient(client))
+        return -1;
+    
+    // If the client is dead, they don't own a teleporter
+    if (!IsPlayerAlive(client))
+        return -1;
+    
     new tele = GetEntPropEnt(client, Prop_Send, "m_hGroundEntity");
     decl String:classname[32];
     if (IsValidEntity(tele) && GetEdictClassname(tele, classname, sizeof(classname)) && strcmp(classname, "obj_teleporter", false) == 0)
     {
         new owner = GetEntPropEnt(tele, Prop_Send, "m_hBuilder");
-        if (IsValidClient(owner, false)) return owner;
+        if (IsValidClient(owner, false))
+            return owner;
     }
     return -1;
 }
+
+// Int -> Boolean
+// Does the current player have guarenteed crits?
 stock TF2_IsPlayerCritBuffed(client)
 {
-    return (TF2_IsPlayerInCondition(client, TFCond_Kritzkrieged) || TF2_IsPlayerInCondition(client, TFCond_HalloweenCritCandy) || TF2_IsPlayerInCondition(client, TFCond:34) || TF2_IsPlayerInCondition(client, TFCond:35) || TF2_IsPlayerInCondition(client, TFCond_CritOnFirstBlood) || TF2_IsPlayerInCondition(client, TFCond_CritOnWin) || TF2_IsPlayerInCondition(client, TFCond_CritOnFlagCapture) || TF2_IsPlayerInCondition(client, TFCond_CritOnKill));
+            // They have a crit buff if they satisfy any of the following:
+            // Are they Kritzkrieged?
+    return (TF2_IsPlayerInCondition(client, TFCond_Kritzkrieged)
+            // Are they under the influence of halloween crit candy?
+            || TF2_IsPlayerInCondition(client, TFCond_HalloweenCritCandy)
+            // Have they activated a canteen that contained a crit boost?
+            || TF2_IsPlayerInCondition(client, TFCond:34)
+            // Are they in the middle of a democharge?
+            || TF2_IsPlayerInCondition(client, TFCond:35)
+            // Do they have first blood?
+            || TF2_IsPlayerInCondition(client, TFCond_CritOnFirstBlood)
+            // Did their team win the round?
+            || TF2_IsPlayerInCondition(client, TFCond_CritOnWin)
+            // Did their team recently capture a flag?
+            || TF2_IsPlayerInCondition(client, TFCond_CritOnFlagCapture)
+            // Did they recently kill someone with a weapon that gives crits on kill?
+            || TF2_IsPlayerInCondition(client, TFCond_CritOnKill));
 }
 
+// Is this Gentlespy's second rage?
+// The one where he randomized team colors temporarily?
 public Action:Timer_DisguiseBackstab(Handle:timer, any:userid)
 {
     new client = GetClientOfUserId(userid);
@@ -4003,8 +4034,8 @@ stock RandomlyDisguise(client)  //mechamechamechamechamecha
         new team = GetClientTeam(client);
 
         new Handle:hArray = CreateArray();
-        for (new clientcheck = 0;  clientcheck <= MaxClients;  clientcheck++) {
-            if (IsValidClient(clientcheck) && GetClientTeam(clientcheck) == team && clientcheck != client)
+            if (IsValidClient(clientcheck) && GetClientTeam(clientcheck)
+        for (new clientcheck = 0;  clientcheck <= MaxClients;  clientcheck++) { == team && clientcheck != client)
             {
                 new TFClassType:class = TF2_GetPlayerClass(clientcheck);
                 if (class == TFClass_Scout || class == TFClass_Medic || class == TFClass_Engineer || class == TFClass_Sniper || class == TFClass_Pyro)
@@ -4034,8 +4065,10 @@ stock RandomlyDisguise(client)  //mechamechamechamechamecha
 
 public Action:TF2_CalcIsAttackCritical(client, weapon, String:weaponname[], &bool:result)
 {
-    if (!Enabled) return Plugin_Continue;
-    if (FF2RoundState != 1) return Plugin_Continue;
+    if (!Enabled)
+        return Plugin_Continue;
+    if (FF2RoundState != 1)
+        return Plugin_Continue;
     if (IsBoss(client) && !BossCrits)
     {
         result = false;
@@ -4073,11 +4106,18 @@ stock LastBossIndex()
     return 0;
 }
 
+// Int -> Int
+// Given a client ID, returns the boss ID if it matches the client ID or -1 if a boss
+//   ID matching the given client ID isn't found
 stock GetBossIndex(client)
 {
+    // Iterate throught the boss id array
     for(new i = 0; i <= MaxClients; i++)
+        // If a boss ID matches the given client ID, return it
         if (Boss[i] == client)
-            return i;   
+            return i;
+            
+    // Else return -1
     return -1;
 }
 
@@ -4709,9 +4749,12 @@ public Action:TurnToZeroPanel(caller,client)
 
 bool:GetClientClassinfoCookie(client)
 {
-    if (!IsValidClient(client)) return false;
-    if (IsFakeClient(client)) return false;
-    if (!AreClientCookiesCached(client)) return true;
+    if (!IsValidClient(client))
+        return false;
+    if (IsFakeClient(client))
+        return false;
+    if (!AreClientCookiesCached(client))
+        return true;
     decl String:s[24];
     decl String:ff2cookies_values[8][5];
     GetClientCookie(client, FF2Cookies, s,24);
@@ -4719,39 +4762,80 @@ bool:GetClientClassinfoCookie(client)
     return StringToInt(ff2cookies_values[3])==1;
 }
 
+// Int -> Int
+// Gets the current queue points of the given client
 GetClientQueuePoints(client)
 {
-    if (!IsValidClient(client)) return 0;
+    // If the client doesn't exist, they have no points
+    if (!IsValidClient(client))
+        return 0;
+    
+    // If the client is a fake client (most likely a bot), return the current bot queue points
     if (IsFakeClient(client))
         return botqueuepoints;
-    if (!AreClientCookiesCached(client)) return 0;
+    
+    // If the client's cookies haven't been loaded, they have no points
+    if (!AreClientCookiesCached(client))
+        return 0;
+    
     decl String:s[24];
     decl String:ff2cookies_values[8][5];
+    
+    // Get the client's current cookie
     GetClientCookie(client, FF2Cookies, s,24);
+    
+    // Parse the cookie
     ExplodeString(s, " ", ff2cookies_values,8,5);
+    
+    // Return the first value of the cookie (the queue points)
     return StringToInt(ff2cookies_values[0]);
 }
 
+// Int x Int -> void
+// Sets the queue points of the given client to a given number
 SetClientQueuePoints(client, points)
 {
-    if (!IsValidClient(client)) return;
-    if (IsFakeClient(client)) return;
-    if (!AreClientCookiesCached(client)) return;
+    // If the client doesn't exist, do nothing
+    if (!IsValidClient(client))
+        return;
+    
+    // If the client is a fake client (most likely a bot), do nothing
+    if (IsFakeClient(client))
+        return;
+        
+    // If the client's cookies haven't been loaded, do nothing
+    if (!AreClientCookiesCached(client))
+        return;
+    
     decl String:s[24];
     decl String:ff2cookies_values[8][5];
+    
+    // Get the client's current cookie
     GetClientCookie(client, FF2Cookies, s,24);
+    
+    // Parse the cookie
     ExplodeString(s, " ", ff2cookies_values,8,5);
+    
+    // Format the cookie for storage, but replace the existing points with the given points
     Format(s,24,"%i %s %s %s %s %s %s",points,ff2cookies_values[1],ff2cookies_values[2],ff2cookies_values[3],ff2cookies_values[4],ff2cookies_values[5],ff2cookies_values[6],ff2cookies_values[7]);
+    
+    // Store the cookie
     SetClientCookie(client, FF2Cookies, s);
 }
 
+// Int -> Int (Boolean)
+// Given a client ID, returns 1 (true) if the given ID is the boss
 stock IsBoss(client)
 {
+    // If the client doesn't exist, they aren't the boss
     if (client <= 0)
         return 0;
+    // Iterate through the bosses
     for(new i = 0; i <= MaxClients; i++)
+        // If the current client ID exists among the bosses, they are a boss
         if (Boss[i] == client)
             return 1;
+    // Else they aren't the boss
     return 0;
 }
 
@@ -5224,13 +5308,22 @@ public Action:HookSound(clients[64], &numClients, String:sample[PLATFORM_MAX_PAT
     return Plugin_Continue;
 }
 
+// SetAmmo: Int x Int x Int -> void
+// Set the ammo of a given client / weapon to a given amount
 stock SetAmmo(client, slot, ammo)
 {
+    // Get the entity ID of the weapon in the given weapon slot
     new weapon = GetPlayerWeaponSlot(client, slot);
+    // If the weapon exists
     if (IsValidEntity(weapon))
     {
+        // Get property memory offset for the ammo value stored in the given weapon's properties
         new iOffset = GetEntProp(weapon, Prop_Send, "m_iPrimaryAmmoType", 1)*4;
+        
+        // Get the memory address of the player ammo table
         new iAmmoTable = FindSendPropInfo("CTFPlayer", "m_iAmmo");
+        
+        // Get the ammo of the given player / weapon (stored in ammo table + weapon's offset)
         SetEntData(client, iAmmoTable+iOffset, ammo, 4, true);
     }
 }
@@ -6058,13 +6151,11 @@ public OnEntityCreated(entity, const String:classname[])
     //If the health-bar was just created, cache the reference.
     if (StrEqual(classname, HEALTHBAR_CLASS))
     {
-
         healthBarEntity = entity;
     }
     //If the boss was just created, cache the reference.
     if (bossEntity == -1 && StrEqual(classname, BOSS))
     {
-
         bossEntity = entity;
     }
 }
