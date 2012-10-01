@@ -33,14 +33,14 @@
 #define BOSS "eyeball_boss"
 
 new chkFirstHale;
-new bool:b_allowBossChgClass = false;
+new bool:b_allowBossChgClass = false; // Can the boss change class?
 new bool:b_BossChgClassDetected = false;
-new OtherTeam = 2;
-new BossTeam = 3;
+new OtherTeam = 2; // Team value for the player-filled team; 2 is RED Team
+new BossTeam = 3; // Team value for the boss-filled team; 3 is BLU Team
 new FF2RoundState;
 new playing;
 new healthcheckused;
-new RedAlivePlayers;
+new RedAlivePlayers; // Number of non-boss players left alive
 new RoundCount;
 new Special[MAXPLAYERS+1];
 new Incoming[MAXPLAYERS+1];
@@ -108,12 +108,11 @@ new Handle:timeleftHUD;
 new Handle:abilitiesHUD;
 new Handle:doorchecktimer;
 
-// Is the plugin disabled?
-new bool:Enabled = true;
+new bool:Enabled = true; // Is the plugin disabled?
 new bool:Enabled2 = true;
 new PointDelay = 6;
 new Float:Announce = 120.0;
-new AliveToEnable = 5;
+new AliveToEnable = 5; // The number of players that need to be alive to enable capture points
 new PointType = 0;
 new bool:BossCrits = true;
 new Float:circuitStun = 0.0;
@@ -5235,18 +5234,33 @@ stock SetAmmo(client, slot, ammo)
         SetEntData(client, iAmmoTable+iOffset, ammo, 4, true);
     }
 }
+
+// GetAmmo: Int x Int -> Int
+// Given a client's ID and one of their weapon slots, returns the current ammo amount in the slot
 stock GetAmmo(client, slot)
 {
+    // If the given ID isn't valid, do nothing
     if (!IsValidClient(client)) return 0;
+    
+    // Get the entity ID of the weapon in the given weapon slot
     new weapon = GetPlayerWeaponSlot(client, slot);
+    
+    // If the weapon exists
     if (IsValidEntity(weapon))
     {   
+        // Get property memory offset for the ammo value stored in the given weapon's properties
         new iOffset = GetEntProp(weapon, Prop_Send, "m_iPrimaryAmmoType", 1)*4;
+        
+        // Get the memory address of the player ammo table
         new iAmmoTable = FindSendPropInfo("CTFPlayer", "m_iAmmo");
+        
+        // Get the ammo of the given player / weapon (stored in ammo table + weapon's offset)
         return GetEntData(client, iAmmoTable+iOffset);
     }
+    // If the weapon doesn't exist, do nothing
     return 0;
 }
+
 stock GetHealingTarget(client,bool:checkgun = false)
 {
     decl String:s[64];
@@ -5517,11 +5531,13 @@ public Action:Timer_UseBossCharge(Handle:hTimer,Handle:data)
     return Plugin_Continue;
 }
 
+// Is the plugin enabled?
 public Native_IsEnabled(Handle:plugin,numParams)
 {
     return Enabled;
 }
 
+// Get the user ID of the boss if it exists
 public Native_GetBoss(Handle:plugin,numParams)
 {
     new i = GetNativeCell(1);
@@ -5530,11 +5546,13 @@ public Native_GetBoss(Handle:plugin,numParams)
     return -1;
 }
 
+// Get the boss's index
 public Native_GetIndex(Handle:plugin,numParams)
 {
     return GetBossIndex(GetNativeCell(1));
 }
 
+// Get the boss's team
 public Native_GetTeam(Handle:plugin,numParams)
 {
     return BossTeam;
@@ -5567,11 +5585,13 @@ public Native_GetSpecial(Handle:plugin,numParams)
     return true;
 }
 
+// Get the boss's current HP
 public Native_GetHealth(Handle:plugin,numParams)
 {
     return BossHealth[GetNativeCell(1)];
 }
 
+// Get the boss's current max HP
 public Native_GetHealthMax(Handle:plugin,numParams)
 {
     return BossHealthMax[GetNativeCell(1)];
