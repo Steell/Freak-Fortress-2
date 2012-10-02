@@ -192,9 +192,9 @@ new Handle:OnTriggerHurt;
 new Handle:OnSpecialSelected;
 new Handle:OnAddQueuePoints;
 
-new bool:bBlockVoice[MAXSPECIALS];
-new Float:BossSpeed[MAXSPECIALS];
-new Float:BossRageDamage[MAXSPECIALS];
+new bool:IsVoiceDisabled[MAXSPECIALS];
+new Float:CharacterSpeed[MAXSPECIALS];
+new Float:CharacterRageDmg[MAXSPECIALS];
 new String:ChancesString[64];
 
 public Plugin:myinfo = 
@@ -732,7 +732,7 @@ public LoadCharacter(const String:character[])
     decl String:characterConfigPath[PLATFORM_MAX_PATH];
     BuildPath(
         Path_SM, 
-        characterConfigPath, PLATFORM_MAX_PATH, 
+        characterConfigPath, sizeof(characterConfigPath), 
         "configs/freak_fortress_2/%s.cfg", character
     );
 
@@ -743,39 +743,50 @@ public LoadCharacter(const String:character[])
         return;
     }
 
-    //Append the new character config to the end of the CharacterConfigs array
-    CharacterConfigs[NumLoadedCharacters] = CreateKeyValues("character");
-    FileToKeyValues(CharacterConfigs[NumLoadedCharacters], characterConfigPath);
+    //Load character config
+    new Handle:newCharConfig = CreateKeyValues("character");
+    FileToKeyValues(newCharConfig, characterConfigPath);
 
-    decl String:buffer[64];
-    new n = 1;
+    //Append the new character config to the end of the CharacterConfigs array
+    CharacterConfigs[NumLoadedCharacters] = newCharConfig;
+
+    //Confirm all ability sub plugins are present
+    decl String:buffer[64],
+         String:pluginPath[PLATFORM_MAX_PATH],
+         String:pluginName[64];
+    new abilityCount = 1;
     while (true)
     {  
-        Format(s, 10, "ability%i", n);
-        if (KvJumpToKey(CharacterConfigs[NumLoadedCharacters],s))
+        Format(buffer, 10, "ability%i", abilityCount);
+        if (KvJumpToKey(newCharConfig, buffer))
         {
-            decl String:plugin_name[64];
-            KvGetString(CharacterConfigs[NumLoadedCharacters], "plugin_name",plugin_name,64);
-            BuildPath(Path_SM, s, PLATFORM_MAX_PATH, "plugins/freaks/%s.ff2",plugin_name);
-            if (!FileExists(s))
+            KvGetString(newCharConfig, "plugin_name", pluginName, sizeof(pluginName));
+            BuildPath(Path_SM, pluginPath, sizeof(pluginPath), "plugins/freaks/%s.ff2", pluginName);
+            if (!FileExists(pluginPath))
             {
-                LogError("Character %s needs plugin %s",character,plugin_name);
+                LogError("Character %s needs plugin %s", character, pluginName);
+                CloseHandle(newCharConfig);
                 return;
             }
-            n++;
+
+            abilityCount++;
         }
         else
             break;
     }
-    KvRewind(CharacterConfigs[NumLoadedCharacters]);
+    KvRewind(newCharConfig);
     
     decl String:s2[PLATFORM_MAX_PATH];
     decl String:s3[64];
-    KvSetString(CharacterConfigs[NumLoadedCharacters], "filename", character);
-    KvGetString(CharacterConfigs[NumLoadedCharacters], "name", s, PLATFORM_MAX_PATH);
-    bBlockVoice[NumLoadedCharacters] = bool:KvGetNum(CharacterConfigs[NumLoadedCharacters],"sound_block_vo",0);
-    BossSpeed[NumLoadedCharacters] = KvGetFloat(CharacterConfigs[NumLoadedCharacters],"maxspeed",340.0);
-    BossRageDamage[NumLoadedCharacters] = KvGetFloat(CharacterConfigs[NumLoadedCharacters],"ragedamage",1900.0);
+
+
+    decl String:charName[64];
+
+    KvSetString(newCharConfig, "filename", character);
+    KvGetString(newCharConfig, "name", charName, sizeof(charName));
+    IsVoiceDisabled[NumLoadedCharacters] = bool:KvGetNum(newCharConfig, "sound_block_vo", 0);
+    CharacterSpeed[NumLoadedCharacters] = KvGetFloat(CharacterConfigs[NumLoadedCharacters],"maxspeed",340.0);
+    CharacterRageDmg[NumLoadedCharacters] = KvGetFloat(CharacterConfigs[NumLoadedCharacters],"ragedamage",1900.0);
     KvGotoFirstSubKey(CharacterConfigs[NumLoadedCharacters]);
     decl i,is;
     BuildPath(Path_SM,s,PLATFORM_MAX_PATH,"configs/freak_fortress_2/characters.cfg");
@@ -3018,7 +3029,7 @@ public Action:BossTimer(Handle:hTimer)
             TF2_RemoveCondition(Boss[index],TFCond_Jarated);
         if (TF2_IsPlayerInCondition(Boss[index], TFCond_MarkedForDeath))
             TF2_RemoveCondition(Boss[index], TFCond_MarkedForDeath);
-        SetEntPropFloat(Boss[index], Prop_Data, "m_flMaxspeed", BossSpeed[Special[index]]+0.7*(100-BossHealth[index]*100/BossLivesMax[index]/BossHealthMax[index]));
+        SetEntPropFloat(Boss[index], Prop_Data, "m_flMaxspeed", CharacterSpeed[Special[index]]+0.7*(100-BossHealth[index]*100/BossLivesMax[index]/BossHealthMax[index]));
         if (BossHealth[index] <= 0 && IsPlayerAlive(Boss[index]))
             BossHealth[index] = 1;
         SetBossHealthFix(Boss[index], BossHealth[index]);
@@ -3573,7 +3584,7 @@ public Action:Event_OnPlayerHurt(Handle:event, const String:name[], bool:dontBro
         }
     }
     BossHealth[index]-= damage;
-    BossCharge[index][0]+= damage*100.0/BossRageDamage[Special[index]];
+    BossCharge[index][0]+= damage*100.0/CharacterRageDmg[Special[index]];
     if (custom == 16) SetEventInt(event, "damageamount", 9001);
     Damage[attacker]+= damage;
     new healers[MAXPLAYERS];
@@ -3825,7 +3836,7 @@ public Action:OnTakeDamage(client, &attacker, &inflictor, &Float:damage, &damage
                     if (BossHealth[index] > RoundFloat(changedamage)) damage = 0.0;
                     else damage = changedamage;
                     BossHealth[index]-= RoundFloat(changedamage);
-                    BossCharge[index][0]+= changedamage*100/BossRageDamage[Special[index]];
+                    BossCharge[index][0]+= changedamage*100/CharacterRageDmg[Special[index]];
                     if (BossCharge[index][0] > 100.0)
                         BossCharge[index][0] = 100.0;
                     EmitSoundToClient(client,"player/spy_shield_break.wav", _, _, SNDLEVEL_TRAFFIC, SND_NOFLAGS, 0.7, 100, _, Pos, NULL_VECTOR, false, 0.0);
@@ -3913,7 +3924,7 @@ public Action:OnTakeDamage(client, &attacker, &inflictor, &Float:damage, &damage
                             damage = 1500.0;
                         if (strcmp(currentmap, "arena_arakawa_b3", false) == 0 && damage > 1000.0) damage = 490.0;
                         BossHealth[index]-= RoundFloat(damage);
-                        BossCharge[index][0]+= damage*100/BossRageDamage[Special[index]];
+                        BossCharge[index][0]+= damage*100/CharacterRageDmg[Special[index]];
                         if (BossHealth[index] <= 0) damage *= 5;
                         if (BossCharge[index][0] > 100)
                             BossCharge[index][0] = 100.0;
@@ -5340,7 +5351,7 @@ public Action:HookSound(clients[64], &numClients, String:sample[PLATFORM_MAX_PAT
         return Plugin_Continue;
     if (!StrContains(sample,"vo") && !(FF2flags[Boss[index]] & FF2FLAG_TALKING))
     {
-        if (bBlockVoice[Special[index]])
+        if (IsVoiceDisabled[Special[index]])
             return Plugin_Handled;
         decl String:sample2[PLATFORM_MAX_PATH];
         if (RandomSound("catch_phrase",sample2,PLATFORM_MAX_PATH,index))
