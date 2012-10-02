@@ -183,8 +183,8 @@ static const String:FF2_VERSION_DATES[][] =
 
 static const FF2_MAX_VERSION = sizeof(FF2_VERSION_TITLES) - 1;
 
-new Specials = 0;
-new Handle:BossKV[MAXSPECIALS];
+new NumLoadedCharacters = 0;
+new Handle:CharacterConfigs[MAXSPECIALS];
 new Handle:PreAbility;
 new Handle:OnAbility;
 new Handle:OnMusic;
@@ -547,7 +547,7 @@ public OnMapStart()
 
         for (new i = 0; i < MAXSPECIALS; i++)
         {
-            BossKV[i] = INVALID_HANDLE;
+            CharacterConfigs[i] = INVALID_HANDLE;
         }
 
         Enabled = true;
@@ -597,7 +597,7 @@ public OnMapEnd()
 //Sets up download tables and loads all characters
 public AddToDownload()
 {
-    Specials = 0;
+    NumLoadedCharacters = 0;
 
     decl String:characterConfigPath[PLATFORM_MAX_PATH];
     BuildPath(Path_SM, characterConfigPath, PLATFORM_MAX_PATH, "configs/freak_fortress_2/characters.cfg");
@@ -646,7 +646,8 @@ public AddToDownload()
     PrecacheSound("vo/announcer_ends_2min.wav", true);
 }
 
-//Enables sub-plugins ???? what is a sub plugin?
+//Enables sub plugins
+//  force : if true, will reload plugins if they're already enabled
 EnableSubPlugins(bool:force=false)
 {
     if (isSubPluginsEnabled && !force)
@@ -655,95 +656,138 @@ EnableSubPlugins(bool:force=false)
     //Remember we have sub plugins enabled
     isSubPluginsEnabled = true;
 
-    decl String:path[PLATFORM_MAX_PATH], String:fname[PLATFORM_MAX_PATH], String:fname_old[PLATFORM_MAX_PATH];
-    BuildPath(Path_SM, path, PLATFORM_MAX_PATH, "plugins/freaks");
+    decl String:subPluginPath[PLATFORM_MAX_PATH],
+         String:fname[PLATFORM_MAX_PATH],
+         String:fname_old[PLATFORM_MAX_PATH];
+
+    //Setup sub plugin path
+    BuildPath(Path_SM, subPluginPath, sizeof(subPluginPath), "plugins/freaks");
     
+    //For each file in the directory...
+    new Handle:spDir = OpenDirectory(subPluginPath);
     new FileType:filetype;
-    new Handle:dir = OpenDirectory(path);
-    while (ReadDirEntry(dir, fname, PLATFORM_MAX_PATH, filetype))
+    new bool:renamed;
+    while (ReadDirEntry(spDir, fname, sizeof(fname), filetype))
     {
-        if (filetype == FileType_File && StrContains(fname, ".smx", false) != -1)
+        //If the directory contains any .smx files, rename them to .ff2
+        if (filetype == FileType_File)
         {
-            Format(fname_old, PLATFORM_MAX_PATH, "%s/%s", path, fname);
-            ReplaceString(fname, PLATFORM_MAX_PATH, ".smx", ".ff2", false);
-            Format(fname,PLATFORM_MAX_PATH,"%s/%s",path,fname);
-            DeleteFile(fname);
-            RenameFile(fname,fname_old);
+            renamed = false;
+
+            if (StrContains(fname, ".smx", false) != -1) //TODO: change to regex
+            {
+                Format(fname_old, sizeof(fname), "%s/%s", subPluginPath, fname); //Build old path
+                ReplaceString(fname, sizeof(fname), ".smx", ".ff2", false); //Replace .smx w/ .ff2
+                Format(fname, sizeof(fname), "%s/%s", subPluginPath, fname); //Build new path
+                DeleteFile(fname); //Delete whatever is at the new path
+                RenameFile(fname, fname_old); //Rename the file
+
+                renamed = true;
+            }
+
+            if (renamed || StrContains(fname, ".ff2", false) != -1)
+            {
+                ServerCommand("sm plugins load freaks/%s", fname);
+            }
         }
     }
 
-    dir = OpenDirectory(path);
-    while (ReadDirEntry(dir, fname, PLATFORM_MAX_PATH, filetype))
-    {
-        if (filetype == FileType_File && StrContains(fname, ".ff2",false)!= -1)
-            ServerCommand("sm plugins load freaks/%s",fname);
-    }
+    CloseHandle(spDir);
 }
 
+//Disables sub plugins
+//  force : If true, will disable even if plugins are already disabled
 DisableSubPlugins(bool:force=false)
 {
     if (!isSubPluginsEnabled && !force)
         return;
-    isSubPluginsEnabled=false;
-    decl String:path[PLATFORM_MAX_PATH],String:fname[PLATFORM_MAX_PATH];
-    BuildPath(Path_SM, path, PLATFORM_MAX_PATH, "plugins/freaks");
-    decl FileType:filetype;
-    new Handle:dir = OpenDirectory(path);
-    while (ReadDirEntry(dir, fname, PLATFORM_MAX_PATH, filetype))
-        if (filetype == FileType_File && StrContains(fname, ".ff2",false)!= -1)
-            ServerCommand("sm plugins unload freaks/%s",fname);
+
+    //Remember we have sub plugins disabled
+    isSubPluginsEnabled = false;
+
+    //Setup sub plugin path
+    decl String:subPluginPath[PLATFORM_MAX_PATH];
+    BuildPath(Path_SM, subPluginPath, PLATFORM_MAX_PATH, "plugins/freaks");
+
+    //For each subpath in the sub plugin path...
+    decl String:fname[PLATFORM_MAX_PATH];
+    new FileType:filetype;
+    new Handle:spDir = OpenDirectory(subPluginPath);
+    while (ReadDirEntry(spDir, fname, PLATFORM_MAX_PATH, filetype))
+    {
+        //If the path is a file and it's extension is .ff2, unload it.
+        if (filetype == FileType_File && StrContains(fname, ".ff2", false) != -1)
+            ServerCommand("sm plugins unload freaks/%s", fname);
+    }
+
+    CloseHandle(spDir);
 }
 
+//
 public LoadCharacter(const String:character[])
 {           
-    new String:extensions[][] = {".mdl", ".dx80.vtx", ".dx90.vtx", ".sw.vtx", ".vvd"};
-    decl String:s[PLATFORM_MAX_PATH];
-    BuildPath(Path_SM,s,PLATFORM_MAX_PATH,"configs/freak_fortress_2/%s.cfg",character);
-    if (!FileExists(s))
+    static String:extensions[][] = {".mdl", ".dx80.vtx", ".dx90.vtx", ".sw.vtx", ".vvd"};
+
+    //Setup character config path
+    decl String:characterConfigPath[PLATFORM_MAX_PATH];
+    BuildPath(
+        Path_SM, 
+        characterConfigPath, PLATFORM_MAX_PATH, 
+        "configs/freak_fortress_2/%s.cfg", character
+    );
+
+    //Make sure the file exists
+    if (!FileExists(characterConfigPath))
     {
-        LogError("Character %s is not exists",character);
+        LogError("Character %s does not exist: couldn't load %s", character, characterConfigPath);
         return;
     }
-    BossKV[Specials] = CreateKeyValues("character");
-    FileToKeyValues(BossKV[Specials], s);
-    for(new n = 1; ; n++)
-    {       
-        Format(s,10,"ability%i",n);
-        if (KvJumpToKey(BossKV[Specials],s))
+
+    //Append the new character config to the end of the CharacterConfigs array
+    CharacterConfigs[NumLoadedCharacters] = CreateKeyValues("character");
+    FileToKeyValues(CharacterConfigs[NumLoadedCharacters], characterConfigPath);
+
+    decl String:buffer[64];
+    new n = 1;
+    while (true)
+    {  
+        Format(s, 10, "ability%i", n);
+        if (KvJumpToKey(CharacterConfigs[NumLoadedCharacters],s))
         {
             decl String:plugin_name[64];
-            KvGetString(BossKV[Specials], "plugin_name",plugin_name,64);
+            KvGetString(CharacterConfigs[NumLoadedCharacters], "plugin_name",plugin_name,64);
             BuildPath(Path_SM, s, PLATFORM_MAX_PATH, "plugins/freaks/%s.ff2",plugin_name);
             if (!FileExists(s))
             {
                 LogError("Character %s needs plugin %s",character,plugin_name);
                 return;
             }
+            n++;
         }
         else
             break;
     }
-    KvRewind(BossKV[Specials]);
+    KvRewind(CharacterConfigs[NumLoadedCharacters]);
     
     decl String:s2[PLATFORM_MAX_PATH];
     decl String:s3[64];
-    KvSetString(BossKV[Specials], "filename", character);
-    KvGetString(BossKV[Specials], "name", s, PLATFORM_MAX_PATH);
-    bBlockVoice[Specials] = bool:KvGetNum(BossKV[Specials],"sound_block_vo",0);
-    BossSpeed[Specials] = KvGetFloat(BossKV[Specials],"maxspeed",340.0);
-    BossRageDamage[Specials] = KvGetFloat(BossKV[Specials],"ragedamage",1900.0);
-    KvGotoFirstSubKey(BossKV[Specials]);
+    KvSetString(CharacterConfigs[NumLoadedCharacters], "filename", character);
+    KvGetString(CharacterConfigs[NumLoadedCharacters], "name", s, PLATFORM_MAX_PATH);
+    bBlockVoice[NumLoadedCharacters] = bool:KvGetNum(CharacterConfigs[NumLoadedCharacters],"sound_block_vo",0);
+    BossSpeed[NumLoadedCharacters] = KvGetFloat(CharacterConfigs[NumLoadedCharacters],"maxspeed",340.0);
+    BossRageDamage[NumLoadedCharacters] = KvGetFloat(CharacterConfigs[NumLoadedCharacters],"ragedamage",1900.0);
+    KvGotoFirstSubKey(CharacterConfigs[NumLoadedCharacters]);
     decl i,is;
     BuildPath(Path_SM,s,PLATFORM_MAX_PATH,"configs/freak_fortress_2/characters.cfg");
-    while (KvGotoNextKey(BossKV[Specials]))
+    while (KvGotoNextKey(CharacterConfigs[NumLoadedCharacters]))
     {   
-        KvGetSectionName(BossKV[Specials], s3, 64);
+        KvGetSectionName(CharacterConfigs[NumLoadedCharacters], s3, 64);
         if (!strcmp(s3,"download"))
         {
             for(i = 1; ; i++)
             {
                 IntToString(i,s2,4);
-                KvGetString(BossKV[Specials], s2, s, PLATFORM_MAX_PATH);
+                KvGetString(CharacterConfigs[NumLoadedCharacters], s2, s, PLATFORM_MAX_PATH);
                 if (!s[0])
                     break;
                 AddFileToDownloadsTable(s);
@@ -754,7 +798,7 @@ public LoadCharacter(const String:character[])
             for(i = 1; ; i++)
             {
                 IntToString(i,s2,4);
-                KvGetString(BossKV[Specials], s2, s, PLATFORM_MAX_PATH);
+                KvGetString(CharacterConfigs[NumLoadedCharacters], s2, s, PLATFORM_MAX_PATH);
                 if (!s[0])
                     break;
                 PrecacheModel(s,true);
@@ -765,7 +809,7 @@ public LoadCharacter(const String:character[])
             for(i = 1; ; i++)
             {
                 IntToString(i,s2,4);
-                KvGetString(BossKV[Specials], s2, s, PLATFORM_MAX_PATH);
+                KvGetString(CharacterConfigs[NumLoadedCharacters], s2, s, PLATFORM_MAX_PATH);
                 if (!s[0])
                     break;
                 for (is = 0;  is < sizeof(extensions);  is++)
@@ -780,7 +824,7 @@ public LoadCharacter(const String:character[])
             for(i = 1; ; i++)
             {
                 IntToString(i,s2,4);
-                KvGetString(BossKV[Specials], s2, s, PLATFORM_MAX_PATH);
+                KvGetString(CharacterConfigs[NumLoadedCharacters], s2, s, PLATFORM_MAX_PATH);
                 if (!s[0])
                     break;
                 Format(s2,PLATFORM_MAX_PATH,"%s.vtf",s);
@@ -794,14 +838,14 @@ public LoadCharacter(const String:character[])
             for(i = 1; ; i++)
             {
                 IntToString(i,s2,4);
-                KvGetString(BossKV[Specials], s2, s, PLATFORM_MAX_PATH);
+                KvGetString(CharacterConfigs[NumLoadedCharacters], s2, s, PLATFORM_MAX_PATH);
                 if (!s[0])
                     break;
                 PrecacheSound(s,true);
             }
         }
     }
-    Specials++;
+    NumLoadedCharacters++;
 }
 
 public OnConVarChanged(Handle:convar, const String:oldValue[], const String:newValue[])
@@ -1103,31 +1147,31 @@ public Action:Event_OnRoundStart(Handle:event, const String:name[], bool:dontBro
     Boss[0] = FindBosses(see);
     PickSpecial(0,0);
     see[Boss[0]] = true;
-    if ((Special[0] < 0) || !BossKV[Special[0]])
+    if ((Special[0] < 0) || !CharacterConfigs[Special[0]])
     {
         LogError("[FF2] I just don't know what went wrong");
         return Plugin_Continue;
     }
-    KvRewind(BossKV[Special[0]]);
-    BossLivesMax[0] = KvGetNum(BossKV[Special[0]], "lives",1);
+    KvRewind(CharacterConfigs[Special[0]]);
+    BossLivesMax[0] = KvGetNum(CharacterConfigs[Special[0]], "lives",1);
     SetEntProp(Boss[0], Prop_Data, "m_iMaxHealth",1337);
     if (LastClass[Boss[0]] == TFClass_Unknown)
         LastClass[Boss[0]] = TF2_GetPlayerClass(Boss[0]);
     if (playing > 2)
         for (new i = 1; i <= MaxClients; i++)
         {       
-            KvRewind(BossKV[Special[i-1]]);
-            KvGetString(BossKV[Special[i-1]], "companion", s, 64);
+            KvRewind(CharacterConfigs[Special[i-1]]);
+            KvGetString(CharacterConfigs[Special[i-1]], "companion", s, 64);
             if (StrEqual(s,""))
                 break;
             Boss[i] = FindBosses(see);
             if (PickSpecial(i,i-1))
             {
-                KvRewind(BossKV[Special[i]]);
+                KvRewind(CharacterConfigs[Special[i]]);
                 for (new pingas = 0; Boss[i] == Boss[i-1] && pingas < 100; pingas++)
                     Boss[i] = FindBosses(see);
                 see[Boss[i]] = true;
-                BossLivesMax[i] = KvGetNum(BossKV[Special[i]], "lives",1);
+                BossLivesMax[i] = KvGetNum(CharacterConfigs[Special[i]], "lives",1);
                 SetEntProp(Boss[i], Prop_Data, "m_iMaxHealth",1337);
                 if (LastClass[Boss[i]] == TFClass_Unknown)
                     LastClass[Boss[i]] = TF2_GetPlayerClass(Boss[i]);
@@ -1227,14 +1271,14 @@ public Action:BossInfoTimer_showinfo(Handle:hTimer,any:index)
     {       
         decl String:s[10];
         Format(s,10,"ability%i",n);
-        if (index == -1 || Special[index] == -1 || !BossKV[Special[index]])
+        if (index == -1 || Special[index] == -1 || !CharacterConfigs[Special[index]])
             return Plugin_Stop;
-        KvRewind(BossKV[Special[index]]);
-        if (KvJumpToKey(BossKV[Special[index]],s))
+        KvRewind(CharacterConfigs[Special[index]]);
+        if (KvJumpToKey(CharacterConfigs[Special[index]],s))
         {
             decl String:plugin_name[64];
-            KvGetString(BossKV[Special[index]], "plugin_name",plugin_name,64);
-            if (KvGetNum(BossKV[Special[index]], "buttonmode",0) == 2)
+            KvGetString(CharacterConfigs[Special[index]], "plugin_name",plugin_name,64);
+            if (KvGetNum(CharacterConfigs[Special[index]], "buttonmode",0) == 2)
             {
                 see=true;
                 break;
@@ -1345,8 +1389,8 @@ public Action:Event_OnRoundEnd(Handle:event, const String:name[], bool:dontBroad
         decl String:s2[4];
         for(new i = 0; Boss[i]; i++)
         {
-            KvRewind(BossKV[Special[i]]);
-            KvGetString(BossKV[Special[i]], "name", name1, 64," = Failed name = ");
+            KvRewind(CharacterConfigs[Special[i]]);
+            KvGetString(CharacterConfigs[Special[i]], "name", name1, 64," = Failed name = ");
             if (BossLives[i] > 1)
                 Format(s2,4,"x%i",BossLives[i]);
             else
@@ -1570,8 +1614,8 @@ public Action:Timer_MusicPlay(Handle:timer,any:client)
         MusicIndex = -1;
         return Plugin_Continue;
     }
-    KvRewind(BossKV[Special[0]]);
-    if (KvJumpToKey(BossKV[Special[0]],"sound_bgm"))
+    KvRewind(CharacterConfigs[Special[0]]);
+    if (KvJumpToKey(CharacterConfigs[Special[0]],"sound_bgm"))
     {
         decl String:s[PLATFORM_MAX_PATH];
         MusicIndex = 0;
@@ -1580,12 +1624,12 @@ public Action:Timer_MusicPlay(Handle:timer,any:client)
             MusicIndex++;
             Format(s,10,"time%i",MusicIndex);
         }
-        while (KvGetFloat(BossKV[Special[0]], s,0.0) > 1);
+        while (KvGetFloat(CharacterConfigs[Special[0]], s,0.0) > 1);
         MusicIndex = GetRandomInt(1,MusicIndex-1);
         Format(s,10,"time%i",MusicIndex);
-        new Float:time = KvGetFloat(BossKV[Special[0]], s);
+        new Float:time = KvGetFloat(CharacterConfigs[Special[0]], s);
         Format(s,10,"path%i",MusicIndex);
-        KvGetString(BossKV[Special[0]], s,s, PLATFORM_MAX_PATH);
+        KvGetString(CharacterConfigs[Special[0]], s,s, PLATFORM_MAX_PATH);
         new Action:act = Plugin_Continue;
         Call_StartForward(OnMusic);
         decl String:sound2[PLATFORM_MAX_PATH];
@@ -1630,8 +1674,8 @@ public Action:Timer_MusicTheme(Handle:timer,any:userid)
     MusicTimer = INVALID_HANDLE;
     if (Enabled && FF2RoundState == 1)
     {   
-        KvRewind(BossKV[Special[0]]);
-        if (KvJumpToKey(BossKV[Special[0]],"sound_bgm"))
+        KvRewind(CharacterConfigs[Special[0]]);
+        if (KvJumpToKey(CharacterConfigs[Special[0]],"sound_bgm"))
         {
             decl client;
             if (!userid)
@@ -1645,12 +1689,12 @@ public Action:Timer_MusicTheme(Handle:timer,any:userid)
                 MusicIndex++;
                 Format(s,10,"time%i",MusicIndex);
             }
-            while (KvGetFloat(BossKV[Special[0]], s) > 1);
+            while (KvGetFloat(CharacterConfigs[Special[0]], s) > 1);
             MusicIndex = GetRandomInt(1,MusicIndex-1);
             Format(s,10,"time%i",MusicIndex);
-            new Float:time = KvGetFloat(BossKV[Special[0]],s);
+            new Float:time = KvGetFloat(CharacterConfigs[Special[0]],s);
             Format(s,10,"path%i",MusicIndex);
-            KvGetString(BossKV[Special[0]], s,s, PLATFORM_MAX_PATH);
+            KvGetString(CharacterConfigs[Special[0]], s,s, PLATFORM_MAX_PATH);
             
             new Action:act = Plugin_Continue;
             Call_StartForward(OnMusic);
@@ -1861,8 +1905,8 @@ public Action:MessageTimer(Handle:hTimer)
     {
         if (!IsValidEdict(Boss[i])) continue;
         CreateTimer(0.1,MakeBoss,i);
-        KvRewind(BossKV[Special[i]]);
-        KvGetString(BossKV[Special[i]], "name",name, 64," = Failed name = ");
+        KvRewind(CharacterConfigs[Special[i]]);
+        KvGetString(CharacterConfigs[Special[i]], "name",name, 64," = Failed name = ");
         if (BossLives[i] > 1)
             Format(s2,4,"x%i",BossLives[i]);
         else
@@ -1884,8 +1928,8 @@ public Action:MakeModelTimer(Handle:hTimer,any:index)
     if (!Boss[index] || !IsValidEdict(Boss[index]) || !IsClientInGame(Boss[index]) || !IsPlayerAlive(Boss[index]) || (FF2RoundState == 2))
         return Plugin_Stop;
     decl String:s[PLATFORM_MAX_PATH];
-    KvRewind(BossKV[Special[index]]);
-    KvGetString(BossKV[Special[index]], "model",s, PLATFORM_MAX_PATH);
+    KvRewind(CharacterConfigs[Special[index]]);
+    KvGetString(CharacterConfigs[Special[index]], "model",s, PLATFORM_MAX_PATH);
     SetVariantString(s);
     AcceptEntityInput(Boss[index], "SetCustomModel");
     SetEntProp(Boss[index], Prop_Send, "m_bUseClassAnimations",1);
@@ -1901,19 +1945,19 @@ EquipBoss(index)
     decl String:s2[128];
     for(new j = 1; ; j++)
     {
-        KvRewind(BossKV[Special[index]]);
+        KvRewind(CharacterConfigs[Special[index]]);
         Format(s,10,"weapon%i",j);
-        if (KvJumpToKey(BossKV[Special[index]],s))
+        if (KvJumpToKey(CharacterConfigs[Special[index]],s))
         {
-            KvGetString(BossKV[Special[index]], "name",s, 64);
-            KvGetString(BossKV[Special[index]], "attributes",s2, 128);
+            KvGetString(CharacterConfigs[Special[index]], "name",s, 64);
+            KvGetString(CharacterConfigs[Special[index]], "attributes",s2, 128);
             Format(s2,128,"68 ; 2 ; 2 ; 3.0 ; 259 ; 1 ; 269 ; 1 ; %s",s2);
-            new BossWeapon = SpawnWeapon(Boss[index],s,KvGetNum(BossKV[Special[index]], "index"),101,5,s2);
-            if (!KvGetNum(BossKV[Special[index]], "show",0))
+            new BossWeapon = SpawnWeapon(Boss[index],s,KvGetNum(CharacterConfigs[Special[index]], "index"),101,5,s2);
+            if (!KvGetNum(CharacterConfigs[Special[index]], "show",0))
                 SetEntProp(BossWeapon, Prop_Send, "m_iWorldModelIndex", -1);
             SetEntPropEnt(Boss[index], Prop_Send, "m_hActiveWeapon",BossWeapon);
-            KvGoBack(BossKV[Special[index]]);
-            new TFClassType:tclass = TFClassType:KvGetNum(BossKV[Special[index]], "class",1);
+            KvGoBack(CharacterConfigs[Special[index]]);
+            new TFClassType:tclass = TFClassType:KvGetNum(CharacterConfigs[Special[index]], "class",1);
             if (TF2_GetPlayerClass(Boss[index])!= tclass)
                 TF2_SetPlayerClass(Boss[index], tclass);
         }
@@ -1940,8 +1984,8 @@ public Action:MakeBoss(Handle:hTimer,any:index)
 {
     if (!Boss[index] || !IsValidEdict(Boss[index]) || !IsClientInGame(Boss[index]))
         return Plugin_Continue;
-    KvRewind(BossKV[Special[index]]);
-    TF2_SetPlayerClass(Boss[index], TFClassType:KvGetNum(BossKV[Special[index]], "class",1));
+    KvRewind(CharacterConfigs[Special[index]]);
+    TF2_SetPlayerClass(Boss[index], TFClassType:KvGetNum(CharacterConfigs[Special[index]], "class",1));
     if (GetClientTeam(Boss[index]) != BossTeam)
     {
         b_allowBossChgClass = true;
@@ -2404,10 +2448,10 @@ public Action:Timer_changeclass(Handle:hTimer,any:userid)
 {
     new client = GetClientOfUserId(userid);
     new index = GetBossIndex(client);
-    if (index == -1 || Special[index] == -1 || !BossKV[Special[index]])
+    if (index == -1 || Special[index] == -1 || !CharacterConfigs[Special[index]])
         return Plugin_Continue;
-    KvRewind(BossKV[Special[index]]);
-    new TFClassType:tclass = TFClassType:KvGetNum(BossKV[Special[index]], "class",0);
+    KvRewind(CharacterConfigs[Special[index]]);
+    new TFClassType:tclass = TFClassType:KvGetNum(CharacterConfigs[Special[index]], "class",0);
     if (TF2_GetPlayerClass(client) != tclass)
         TF2_SetPlayerClass(client, tclass);
     
@@ -2496,8 +2540,8 @@ public Action:Command_GetHP(client)
         decl String:name[64];
         for (new i = 0; Boss[i]; i++)
         {
-            KvRewind(BossKV[Special[i]]);
-            KvGetString(BossKV[Special[i]], "name", name, 64," = Failed name = ");
+            KvRewind(CharacterConfigs[Special[i]]);
+            KvGetString(CharacterConfigs[Special[i]], "name", name, 64," = Failed name = ");
             if (BossLives[i] > 1)
                 Format(s2,4,"x%i",BossLives[i]);
             else
@@ -2541,21 +2585,21 @@ public Action:Command_MakeNextSpecial(client, args)
     }
     GetCmdArgString(arg, sizeof(arg));
     decl i;
-    for (i = 0; i < Specials; i++)
+    for (i = 0; i < NumLoadedCharacters; i++)
     {
-        KvRewind(BossKV[i]);
-        KvGetString(BossKV[i], "name",Special_Name, 64);
+        KvRewind(CharacterConfigs[i]);
+        KvGetString(CharacterConfigs[i], "name",Special_Name, 64);
         if (StrContains(Special_Name,arg,false) >= 0)
         {
             Incoming[0] = i;
             ReplyToCommand(client, "[FF2] Set the next Special to %s", Special_Name);
             return Plugin_Handled;
         }
-        KvGetString(BossKV[i], "filename",Special_Name, 64);
+        KvGetString(CharacterConfigs[i], "filename",Special_Name, 64);
         if (StrContains(Special_Name,arg,false) >= 0)
         {
             Incoming[0] = i;
-            KvGetString(BossKV[i], "name",Special_Name, 64);
+            KvGetString(CharacterConfigs[i], "name",Special_Name, 64);
             ReplyToCommand(client, "[FF2] Set the next Special to %s", Special_Name);
             return Plugin_Handled;
         }
@@ -3017,21 +3061,21 @@ public Action:BossTimer(Handle:hTimer)
         {       
             decl String:s[10];
             Format(s,10,"ability%i",n);
-            KvRewind(BossKV[Special[index]]);
-            if (KvJumpToKey(BossKV[Special[index]],s))
+            KvRewind(CharacterConfigs[Special[index]]);
+            if (KvJumpToKey(CharacterConfigs[Special[index]],s))
             {
                 decl String:plugin_name[64];
-                KvGetString(BossKV[Special[index]], "plugin_name",plugin_name,64);
-                slot = KvGetNum(BossKV[Special[index]], "arg0",0);
-                buttonmode = KvGetNum(BossKV[Special[index]], "buttonmode",0);
+                KvGetString(CharacterConfigs[Special[index]], "plugin_name",plugin_name,64);
+                slot = KvGetNum(CharacterConfigs[Special[index]], "arg0",0);
+                buttonmode = KvGetNum(CharacterConfigs[Special[index]], "buttonmode",0);
                 if (slot < 1)
                     continue;
                     
-                KvGetString(BossKV[Special[index]], "life",s,10,"");
+                KvGetString(CharacterConfigs[Special[index]], "life",s,10,"");
                 if (!s[0])
                 {
                     decl String:ability_name[64];
-                    KvGetString(BossKV[Special[index]], "name",ability_name,64);
+                    KvGetString(CharacterConfigs[Special[index]], "name",ability_name,64);
                     UseAbility(ability_name,plugin_name,index,slot,buttonmode);
                 }
                 else        
@@ -3041,7 +3085,7 @@ public Action:BossTimer(Handle:hTimer)
                         if (StringToInt(lives[j]) == BossLives[index])
                         {
                             decl String:ability_name[64];
-                            KvGetString(BossKV[Special[index]], "name",ability_name,64);
+                            KvGetString(CharacterConfigs[Special[index]], "name",ability_name,64);
                             UseAbility(ability_name,plugin_name,index,slot,buttonmode);
                             break;
                         }
@@ -3057,8 +3101,8 @@ public Action:BossTimer(Handle:hTimer)
             decl String:name1[64];
             for(new i = 0; Boss[i]; i++)
             {
-                KvRewind(BossKV[Special[i]]);
-                KvGetString(BossKV[Special[i]], "name", name1, 64," = Failed name = ");
+                KvRewind(CharacterConfigs[Special[i]]);
+                KvGetString(CharacterConfigs[Special[i]], "name", name1, 64," = Failed name = ");
                 if (BossLives[i] > 1)
                     Format(s,512,"%s\n%s's HP: %i of %ix%i",s,name1,BossHealth[i]-BossHealthMax[i]*(BossLives[i]-1),BossHealthMax[i],BossLives[i]);
                 else
@@ -3127,17 +3171,17 @@ public Action:DoTaunt(client, const String:command[], argc)
         for(i = 1; i < MAXRANDOMS; i++)
         {
             Format(s,10,"ability%i",i);
-            KvRewind(BossKV[Special[index]]);
-            if (KvJumpToKey(BossKV[Special[index]],s))
+            KvRewind(CharacterConfigs[Special[index]]);
+            if (KvJumpToKey(CharacterConfigs[Special[index]],s))
             {
-                if (KvGetNum(BossKV[Special[index]], "arg0",0))
+                if (KvGetNum(CharacterConfigs[Special[index]], "arg0",0))
                     continue;
-                KvGetString(BossKV[Special[index]], "life",s,10);       
+                KvGetString(CharacterConfigs[Special[index]], "life",s,10);       
                 if (!s[0])
                 {
                     decl String:ability_name[64], String:plugin_name[64];
-                    KvGetString(BossKV[Special[index]], "plugin_name",plugin_name,64);
-                    KvGetString(BossKV[Special[index]], "name",ability_name,64);
+                    KvGetString(CharacterConfigs[Special[index]], "plugin_name",plugin_name,64);
+                    KvGetString(CharacterConfigs[Special[index]], "name",ability_name,64);
                     UseAbility(ability_name,plugin_name,index,0);
                 }
                 else    
@@ -3147,8 +3191,8 @@ public Action:DoTaunt(client, const String:command[], argc)
                         if (StringToInt(lives[j]) == BossLives[index])
                         {
                             decl String:ability_name[64], String:plugin_name[64];
-                            KvGetString(BossKV[Special[index]], "plugin_name",plugin_name,64);
-                            KvGetString(BossKV[Special[index]], "name",ability_name,64);
+                            KvGetString(CharacterConfigs[Special[index]], "plugin_name",plugin_name,64);
+                            KvGetString(CharacterConfigs[Special[index]], "name",ability_name,64);
                             UseAbility(ability_name,plugin_name,index,0);
                             break;
                         }
@@ -3479,17 +3523,17 @@ public Action:Event_OnPlayerHurt(Handle:event, const String:name[], bool:dontBro
             for(new n = 1; n < MAXRANDOMS; n++)
             {
                 Format(s,10,"ability%i",n);
-                KvRewind(BossKV[Special[index]]);
-                if (KvJumpToKey(BossKV[Special[index]],s))
+                KvRewind(CharacterConfigs[Special[index]]);
+                if (KvJumpToKey(CharacterConfigs[Special[index]],s))
                 {
-                    if (KvGetNum(BossKV[Special[index]], "arg0",0)!= -1)
+                    if (KvGetNum(CharacterConfigs[Special[index]], "arg0",0)!= -1)
                         continue;
-                    KvGetString(BossKV[Special[index]], "life",s,10);   
+                    KvGetString(CharacterConfigs[Special[index]], "life",s,10);   
                     if (!s[0])
                     {
                         decl String:ability_name[64], String:plugin_name[64];
-                        KvGetString(BossKV[Special[index]], "plugin_name",plugin_name,64);
-                        KvGetString(BossKV[Special[index]], "name",ability_name,64);
+                        KvGetString(CharacterConfigs[Special[index]], "plugin_name",plugin_name,64);
+                        KvGetString(CharacterConfigs[Special[index]], "name",ability_name,64);
                         UseAbility(ability_name,plugin_name,index,-1);
                     }
                     else        
@@ -3499,8 +3543,8 @@ public Action:Event_OnPlayerHurt(Handle:event, const String:name[], bool:dontBro
                             if (StringToInt(lives[j]) == BossLives[index])
                             {
                                 decl String:ability_name[64], String:plugin_name[64];
-                                KvGetString(BossKV[Special[index]], "plugin_name",plugin_name,64);
-                                KvGetString(BossKV[Special[index]], "name",ability_name,64);
+                                KvGetString(CharacterConfigs[Special[index]], "plugin_name",plugin_name,64);
+                                KvGetString(CharacterConfigs[Special[index]], "name",ability_name,64);
                                 UseAbility(ability_name,plugin_name,index,-1);
                                 break;
                             }
@@ -3510,8 +3554,8 @@ public Action:Event_OnPlayerHurt(Handle:event, const String:name[], bool:dontBro
                 
             BossLives[index]--;
             decl String:aname[64];
-            KvRewind(BossKV[Special[index]]);
-            KvGetString(BossKV[Special[index]], "name", aname, 64," = Failed name = ");
+            KvRewind(CharacterConfigs[Special[index]]);
+            KvGetString(CharacterConfigs[Special[index]], "name", aname, 64," = Failed name = ");
             Format(s,256,"%t","ff2_lives_left",aname,BossLives[index]);     
             for (j = 1;  j <= MaxClients; j++)
                 if (IsValidClient(j) && !(FF2flags[j] & FF2FLAG_HUDDISABLED))
@@ -4131,8 +4175,8 @@ stock CalcBossHealthMax(index)
     new Float:summ[32];
     new _operator[32];
         
-    KvRewind(BossKV[Special[index]]);
-    KvGetString(BossKV[Special[index]], "health_formula",formula, 128,"((760+n)*n)^1.04");
+    KvRewind(CharacterConfigs[Special[index]]);
+    KvGetString(CharacterConfigs[Special[index]], "health_formula",formula, 128,"((760+n)*n)^1.04");
     ReplaceString(formula,128," ","");
     new len = strlen(formula);
     for(new i = 0; i <= len; i++)
@@ -4245,12 +4289,12 @@ stock bool:HasAbility(index,const String:plugin_name[],const String:ability_name
     if (!Enabled)
         return false;
     // 
-    if (index == -1 || Special[index] == -1 || BossKV[Special[index]] == INVALID_HANDLE)
+    if (index == -1 || Special[index] == -1 || CharacterConfigs[Special[index]] == INVALID_HANDLE)
         return false;
-    // Ensure that we're at root of BossKV.
-    KvRewind(BossKV[Special[index]]);
+    // Ensure that we're at root of CharacterConfigs.
+    KvRewind(CharacterConfigs[Special[index]]);
     // 
-    if (BossKV[Special[index]] == INVALID_HANDLE)
+    if (CharacterConfigs[Special[index]] == INVALID_HANDLE)
     {
         LogError("failed KV: %i %i",index,Special[index]);
         return false;
@@ -4260,18 +4304,18 @@ stock bool:HasAbility(index,const String:plugin_name[],const String:ability_name
     for(new i = 1; i < MAXRANDOMS; i++)
     {
         Format(s,12,"ability%i",i);
-        if (KvJumpToKey(BossKV[Special[index]],s))
+        if (KvJumpToKey(CharacterConfigs[Special[index]],s))
         {
             decl String:ability_name2[64];
-            KvGetString(BossKV[Special[index]], "name",ability_name2,64);
+            KvGetString(CharacterConfigs[Special[index]], "name",ability_name2,64);
             if (!strcmp(ability_name,ability_name2))
             {
                 decl String:plugin_name2[64];
-                KvGetString(BossKV[Special[index]], "plugin_name",plugin_name2,64);
+                KvGetString(CharacterConfigs[Special[index]], "plugin_name",plugin_name2,64);
                 if (!plugin_name[0] || !plugin_name2[0] || !strcmp(plugin_name,plugin_name2))
                     return true;
             }
-            KvGoBack(BossKV[Special[index]]);
+            KvGoBack(CharacterConfigs[Special[index]]);
         }
     }
     return false;
@@ -4279,31 +4323,31 @@ stock bool:HasAbility(index,const String:plugin_name[],const String:ability_name
 
 stock GetAbilityArgument(index,const String:plugin_name[],const String:ability_name[],arg,defvalue = 0)
 {
-    if (index == -1 || Special[index] == -1 || !BossKV[Special[index]])
+    if (index == -1 || Special[index] == -1 || !CharacterConfigs[Special[index]])
         return 0;
-    KvRewind(BossKV[Special[index]]);
+    KvRewind(CharacterConfigs[Special[index]]);
     decl String:s[10];
     for(new i = 1; i < MAXRANDOMS; i++)
     {
         Format(s,10,"ability%i",i);
-        if (KvJumpToKey(BossKV[Special[index]],s))
+        if (KvJumpToKey(CharacterConfigs[Special[index]],s))
         {
             decl String:ability_name2[64];
-            KvGetString(BossKV[Special[index]], "name",ability_name2,64);
+            KvGetString(CharacterConfigs[Special[index]], "name",ability_name2,64);
             if (strcmp(ability_name,ability_name2))
             {
-                KvGoBack(BossKV[Special[index]]);
+                KvGoBack(CharacterConfigs[Special[index]]);
                 continue;
             }
             decl String:plugin_name2[64];
-            KvGetString(BossKV[Special[index]], "plugin_name",plugin_name2,64);
+            KvGetString(CharacterConfigs[Special[index]], "plugin_name",plugin_name2,64);
             if (plugin_name[0] && plugin_name2[0] && strcmp(plugin_name,plugin_name2))
             {
-                KvGoBack(BossKV[Special[index]]);
+                KvGoBack(CharacterConfigs[Special[index]]);
                 continue;
             }
             Format(s,10,"arg%i",arg);
-            return KvGetNum(BossKV[Special[index]], s,defvalue);
+            return KvGetNum(CharacterConfigs[Special[index]], s,defvalue);
         }
     }
     return 0;
@@ -4311,31 +4355,31 @@ stock GetAbilityArgument(index,const String:plugin_name[],const String:ability_n
 
 stock Float:GetAbilityArgumentFloat(index,const String:plugin_name[],const String:ability_name[],arg,Float:defvalue = 0.0)
 {   
-    if (index == -1 || Special[index] == -1 || !BossKV[Special[index]])
+    if (index == -1 || Special[index] == -1 || !CharacterConfigs[Special[index]])
         return 0.0;
-    KvRewind(BossKV[Special[index]]);
+    KvRewind(CharacterConfigs[Special[index]]);
     decl String:s[10];
     for(new i = 1; i < MAXRANDOMS; i++)
     {
         Format(s,10,"ability%i",i);
-        if (KvJumpToKey(BossKV[Special[index]],s))
+        if (KvJumpToKey(CharacterConfigs[Special[index]],s))
         {
             decl String:ability_name2[64];
-            KvGetString(BossKV[Special[index]], "name",ability_name2,64);
+            KvGetString(CharacterConfigs[Special[index]], "name",ability_name2,64);
             if (strcmp(ability_name,ability_name2))
             {
-                KvGoBack(BossKV[Special[index]]);
+                KvGoBack(CharacterConfigs[Special[index]]);
                 continue;
             }
             decl String:plugin_name2[64];
-            KvGetString(BossKV[Special[index]], "plugin_name",plugin_name2,64);
+            KvGetString(CharacterConfigs[Special[index]], "plugin_name",plugin_name2,64);
             if (plugin_name[0] && plugin_name2[0] && strcmp(plugin_name,plugin_name2))
             {
-                KvGoBack(BossKV[Special[index]]);
+                KvGoBack(CharacterConfigs[Special[index]]);
                 continue;
             }
             Format(s,10,"arg%i",arg);
-            new Float:see = KvGetFloat(BossKV[Special[index]], s,defvalue);
+            new Float:see = KvGetFloat(CharacterConfigs[Special[index]], s,defvalue);
             return see;
         }
     }
@@ -4346,13 +4390,13 @@ stock Float:GetAbilityArgumentFloat(index,const String:plugin_name[],const Strin
 stock GetAbilityArgumentString(index, const String:plugin_name[], const String:ability_name[], arg, String:buffer[], buflen, const String:defvalue[] = "")
 {   
     //If input is invalid, return the empty string.
-    if (index == -1 || Special[index] == -1 || !BossKV[Special[index]])
+    if (index == -1 || Special[index] == -1 || !CharacterConfigs[Special[index]])
     {
         strcopy(buffer,buflen,"");//???? I believe "" should be replaced with 'defValue'.
         return;
     }
     //Reset the config file reader for the given boss.
-    KvRewind(BossKV[Special[index]]);
+    KvRewind(CharacterConfigs[Special[index]]);
     decl String:s[10];
     new specialIndex = Special[index];
     //Iterate through all possible abilities.
@@ -4360,35 +4404,35 @@ stock GetAbilityArgumentString(index, const String:plugin_name[], const String:a
     {
         //Jump to the current ability index if it exists.
         Format(s, 10, "ability%i", i);
-        if (KvJumpToKey(BossKV[specialIndex], s))
+        if (KvJumpToKey(CharacterConfigs[specialIndex], s))
         {
             //Get the current ability name.
             decl String:ability_name2[64];
-            KvGetString(BossKV[specialIndex], "name", ability_name2, 64);
+            KvGetString(CharacterConfigs[specialIndex], "name", ability_name2, 64);
             
             //If the given ability isn't the current ability, skip this iteration (I think???? What's with the KVGoBack?).
             if (strcmp(ability_name, ability_name2))
             {
-                KvGoBack(BossKV[specialIndex]);
+                KvGoBack(CharacterConfigs[specialIndex]);
                 continue;
             }
             
             //Get the plugin name from the boss config data.
             decl String:plugin_name2[64];
-            KvGetString(BossKV[specialIndex], "plugin_name", plugin_name2, 64);
+            KvGetString(CharacterConfigs[specialIndex], "plugin_name", plugin_name2, 64);
             //If both the given plugin name and the current plugin name aren't empty, and
             //  the current plugin name is equal to the given plugin name, skip this iteration.
             if (plugin_name[0] && plugin_name2[0] && strcmp(plugin_name, plugin_name2))
             {
                 //???? What's with the KVGoBack?
-                KvGoBack(BossKV[specialIndex]);
+                KvGoBack(CharacterConfigs[specialIndex]);
                 continue;
             }
             
             //Put the ability into the buffer.
             //???? i was being used as the ability number and now it's being used as the arg number?
             Format(s, 10, "arg%i", arg);
-            KvGetString(BossKV[specialIndex], s, buffer, buflen, defvalue);
+            KvGetString(CharacterConfigs[specialIndex], s, buffer, buflen, defvalue);
         }
     }
 }
@@ -4396,12 +4440,12 @@ stock GetAbilityArgumentString(index, const String:plugin_name[], const String:a
 stock bool:RandomSound(const String: keyvalue[], String: str[],length, index = 0)
 {
     strcopy(str,1,"");
-    if (index<0 || Special[index]<0 || !BossKV[Special[index]])
+    if (index<0 || Special[index]<0 || !CharacterConfigs[Special[index]])
         return false;
-    KvRewind(BossKV[Special[index]]);
-    if (!KvJumpToKey(BossKV[Special[index]],keyvalue))
+    KvRewind(CharacterConfigs[Special[index]]);
+    if (!KvJumpToKey(CharacterConfigs[Special[index]],keyvalue))
     {
-        KvRewind(BossKV[Special[index]]);
+        KvRewind(CharacterConfigs[Special[index]]);
         return false;
     }
     decl String:s[4];
@@ -4409,7 +4453,7 @@ stock bool:RandomSound(const String: keyvalue[], String: str[],length, index = 0
     for(;;)
     {
         IntToString(i,s,4);
-        KvGetString(BossKV[Special[index]], s, str, length);
+        KvGetString(CharacterConfigs[Special[index]], s, str, length);
         if (!str[0])
             break;
         i++;
@@ -4417,27 +4461,27 @@ stock bool:RandomSound(const String: keyvalue[], String: str[],length, index = 0
     if (i == 1)
         return false;
     IntToString(GetRandomInt(1,i-1),s,4);
-    KvGetString(BossKV[Special[index]], s, str, length);
+    KvGetString(CharacterConfigs[Special[index]], s, str, length);
     return true;
 }
 
 stock bool:RandomSoundAbility(const String: keyvalue[], String: str[],length, index = 0, slot = 0)
 {
-    if (index == -1 || Special[index] == -1 || !BossKV[Special[index]])
+    if (index == -1 || Special[index] == -1 || !CharacterConfigs[Special[index]])
         return false;
-    KvRewind(BossKV[Special[index]]);
-    if (!KvJumpToKey(BossKV[Special[index]],keyvalue))
+    KvRewind(CharacterConfigs[Special[index]]);
+    if (!KvJumpToKey(CharacterConfigs[Special[index]],keyvalue))
         return false;
     decl String:s[10];
     new i = 1,j = 1,see[MAXRANDOMS];
     for(;;)
     {
         IntToString(i,s,4);
-        KvGetString(BossKV[Special[index]], s, str, length);
+        KvGetString(CharacterConfigs[Special[index]], s, str, length);
         if (!str[0])
             break;
         Format(s,10,"slot%i",i);
-        if (KvGetNum(BossKV[Special[index]],s,0) == slot)
+        if (KvGetNum(CharacterConfigs[Special[index]],s,0) == slot)
         {
             see[j] = i;
             j++;
@@ -4447,7 +4491,7 @@ stock bool:RandomSoundAbility(const String: keyvalue[], String: str[],length, in
     if (j == 1)
         return false;
     IntToString(see[GetRandomInt(1,j-1)],s,4);
-    KvGetString(BossKV[Special[index]], s, str, length);
+    KvGetString(CharacterConfigs[Special[index]], s, str, length);
     return true;
 }
 
@@ -4493,17 +4537,17 @@ public bool:PickSpecial(index,index2)
                 for(see = 0; random_num > chances[see]; see++) {}
                 decl String:name1[64];
                 Special[index] = StringToInt(s_chances[see*2])-1;
-                KvRewind(BossKV[Special[index]]);
-                KvGetString(BossKV[Special[index]], "name", name1, 64," = Failed name = ");
+                KvRewind(CharacterConfigs[Special[index]]);
+                KvGetString(CharacterConfigs[Special[index]], "name", name1, 64," = Failed name = ");
             }
             else
             {
-                Special[index] = GetRandomInt(0,Specials-1);
-                KvRewind(BossKV[Special[index]]);
+                Special[index] = GetRandomInt(0,NumLoadedCharacters-1);
+                KvRewind(CharacterConfigs[Special[index]]);
             }
             pingas++;
         }
-        while (pingas < 100 && KvGetNum(BossKV[Special[index]], "blocked",0));
+        while (pingas < 100 && KvGetNum(CharacterConfigs[Special[index]], "blocked",0));
         if (pingas == 100)
             Special[index] = 0;
     }
@@ -4511,26 +4555,26 @@ public bool:PickSpecial(index,index2)
     {   
         decl String:s2[64];
         decl String:s1[64];
-        KvRewind(BossKV[Special[index2]]);
-        KvGetString(BossKV[Special[index2]], "companion", s2, 64," = Failed name2 = ");
+        KvRewind(CharacterConfigs[Special[index2]]);
+        KvGetString(CharacterConfigs[Special[index2]], "companion", s2, 64," = Failed name2 = ");
         decl i;
-        for(i = 0; i < Specials; i++)
+        for(i = 0; i < NumLoadedCharacters; i++)
         {
-            KvRewind(BossKV[i]);
-            KvGetString(BossKV[i], "name", s1, 64," = Failed name1 = ");
+            KvRewind(CharacterConfigs[i]);
+            KvGetString(CharacterConfigs[i], "name", s1, 64," = Failed name1 = ");
             if (!strcmp(s1,s2,false))
             {
                 Special[index] = i;
                 break;
             }
-            KvGetString(BossKV[i], "filename", s1, 64," = Failed name1 = ");
+            KvGetString(CharacterConfigs[i], "filename", s1, 64," = Failed name1 = ");
             if (!strcmp(s1,s2,false))
             {
                 Special[index] = i;
                 break;
             }
         }
-        if (i == Specials)
+        if (i == NumLoadedCharacters)
             return false;
     }
     new Action:act = Plugin_Continue;
@@ -4539,8 +4583,8 @@ public bool:PickSpecial(index,index2)
     new SpecialNum=Special[index];
     Call_PushCellRef(SpecialNum);
     decl String:s[64];
-    KvRewind(BossKV[Special[index]]);
-    KvGetString(BossKV[Special[index]], "name", s, 64);
+    KvRewind(CharacterConfigs[Special[index]]);
+    KvGetString(CharacterConfigs[Special[index]], "name", s, 64);
     Call_PushStringEx(s, 64, 0, SM_PARAM_COPYBACK);
     Call_Finish(act);
     if (act == Plugin_Changed)
@@ -4548,10 +4592,10 @@ public bool:PickSpecial(index,index2)
         if (s[0])
         {
             decl String:s2[64];
-            for(new j = 0; BossKV[j] && j < MAXSPECIALS; j++)
+            for(new j = 0; CharacterConfigs[j] && j < MAXSPECIALS; j++)
             {
-                KvRewind(BossKV[j]);
-                KvGetString(BossKV[j], "name", s2, 64);
+                KvRewind(CharacterConfigs[j]);
+                KvGetString(CharacterConfigs[j], "name", s2, 64);
                 if (!strcmp(s,s2))
                 {
                     Special[index] = j;     
@@ -5194,8 +5238,8 @@ public Action:HelpPanelBoss(index)
     decl String:lang[20];
     GetLanguageInfo(GetClientLanguage(Boss[index]),lang,8,s,8);
     Format(lang,20,"description_%s",lang);  
-    KvRewind(BossKV[Special[index]]);
-    KvGetString(BossKV[Special[index]], lang, s, 512);
+    KvRewind(CharacterConfigs[Special[index]]);
+    KvGetString(CharacterConfigs[Special[index]], lang, s, 512);
     if (!s[0])
         return Plugin_Continue;
     ReplaceString(s,512,"\\n","\n");
@@ -5236,12 +5280,12 @@ public MusicTogglePanelH(Handle:menu, MenuAction:action, param1, param2)
             if (param2 == 2)
             {
                 SetClientSoundOptions(param1, SOUNDEXCEPT_MUSIC, false);
-                KvRewind(BossKV[Special[0]]);
-                if (KvJumpToKey(BossKV[Special[0]],"sound_bgm"))
+                KvRewind(CharacterConfigs[Special[0]]);
+                if (KvJumpToKey(CharacterConfigs[Special[0]],"sound_bgm"))
                 {   
                     decl String:s[PLATFORM_MAX_PATH];
                     Format(s,10,"path%i",MusicIndex);
-                    KvGetString(BossKV[Special[0]], s,s, PLATFORM_MAX_PATH);
+                    KvGetString(CharacterConfigs[Special[0]], s,s, PLATFORM_MAX_PATH);
                     StopSound(param1, SNDCHAN_AUTO, s);
                     StopSound(param1, SNDCHAN_AUTO, s);
                 }
@@ -5661,18 +5705,18 @@ public Native_GetSpecial(Handle:plugin,numParams)
     if (see)
     {
         if (index<0) return false;
-        if (!BossKV[index]) return false;
-        KvRewind(BossKV[index]);
-        KvGetString(BossKV[index], "name", s, dstrlen);
+        if (!CharacterConfigs[index]) return false;
+        KvRewind(CharacterConfigs[index]);
+        KvGetString(CharacterConfigs[index], "name", s, dstrlen);
         SetNativeString(2, s,dstrlen);
     }
     else
     {
         if (index<0) return false;
         if (Special[index]<0) return false;
-        if (!BossKV[Special[index]]) return false;
-        KvRewind(BossKV[Special[index]]);
-        KvGetString(BossKV[Special[index]], "name", s, dstrlen);
+        if (!CharacterConfigs[Special[index]]) return false;
+        KvRewind(CharacterConfigs[Special[index]]);
+        KvGetString(CharacterConfigs[Special[index]], "name", s, dstrlen);
         SetNativeString(2, s,dstrlen);
     }
     return true;
@@ -5719,30 +5763,30 @@ public Native_GetRageDist(Handle:plugin,numParams)
     decl String:ability_name[64];   
     GetNativeString(3,ability_name,64);
 
-    if (!BossKV[Special[index]]) return _:0.0;
-    KvRewind(BossKV[Special[index]]);
+    if (!CharacterConfigs[Special[index]]) return _:0.0;
+    KvRewind(CharacterConfigs[Special[index]]);
     decl Float:see;
     if (!ability_name[0])
     {
-        return _:KvGetFloat(BossKV[Special[index]],"ragedist",400.0);
+        return _:KvGetFloat(CharacterConfigs[Special[index]],"ragedist",400.0);
     }
     decl String:s[10];
     for(new i = 1; i < MAXRANDOMS; i++)
     {
         Format(s,10,"ability%i",i);
-        if (KvJumpToKey(BossKV[Special[index]],s))
+        if (KvJumpToKey(CharacterConfigs[Special[index]],s))
         {
             decl String:ability_name2[64];
-            KvGetString(BossKV[Special[index]], "name",ability_name2,64);
+            KvGetString(CharacterConfigs[Special[index]], "name",ability_name2,64);
             if (strcmp(ability_name,ability_name2))
             {
-                KvGoBack(BossKV[Special[index]]);
+                KvGoBack(CharacterConfigs[Special[index]]);
                 continue;
             }
-            if ((see = KvGetFloat(BossKV[Special[index]],"dist",-1.0)) < 0)
+            if ((see = KvGetFloat(CharacterConfigs[Special[index]],"dist",-1.0)) < 0)
             {
-                KvRewind(BossKV[Special[index]]);
-                see = KvGetFloat(BossKV[Special[index]],"ragedist",400.0);
+                KvRewind(CharacterConfigs[Special[index]]);
+                see = KvGetFloat(CharacterConfigs[Special[index]],"ragedist",400.0);
             }
             return _:see;
         }
@@ -5868,23 +5912,23 @@ public Native_GetSpecialKV(Handle:plugin, numParams)
     if (isNumOfSpecial)
     {
         //Check sanity of input.
-        if (index!= -1 && index < Specials)
+        if (index!= -1 && index < NumLoadedCharacters)
         {
-            if (BossKV[index] != INVALID_HANDLE)
-                KvRewind(BossKV[index]);
-            return _:BossKV[index];
+            if (CharacterConfigs[index] != INVALID_HANDLE)
+                KvRewind(CharacterConfigs[index]);
+            return _:CharacterConfigs[index];
         }
     }
-    //Otherwise, use the "Special" array to take the boss index and find the index for the BossKV array.
+    //Otherwise, use the "Special" array to take the boss index and find the index for the CharacterConfigs array.
     else
     {
         new KVIndex = Special[index];
         //Check sanity of input.
         if (index != -1 && index < MaxClients + 1 && KVIndex != -1 && KVIndex < MAXSPECIALS)
         {
-            if (BossKV[KVIndex] != INVALID_HANDLE)
-                KvRewind(BossKV[KVIndex]);
-            return _:BossKV[KVIndex];
+            if (CharacterConfigs[KVIndex] != INVALID_HANDLE)
+                KvRewind(CharacterConfigs[KVIndex]);
+            return _:CharacterConfigs[KVIndex];
         }
     }
     return _:INVALID_HANDLE;
@@ -5901,13 +5945,13 @@ public Native_StartMusic(Handle:plugin, numParams)
 //Stops the current boss's music from playing.
 public Native_StopMusic(Handle:plugin, numParams)
 {
-    if (!BossKV[Special[0]]) return;
-    KvRewind(BossKV[Special[0]]);
-    if (KvJumpToKey(BossKV[Special[0]],"sound_bgm"))
+    if (!CharacterConfigs[Special[0]]) return;
+    KvRewind(CharacterConfigs[Special[0]]);
+    if (KvJumpToKey(CharacterConfigs[Special[0]],"sound_bgm"))
     {   
         decl String:s[PLATFORM_MAX_PATH];
         Format(s,10,"path%i",MusicIndex);
-        KvGetString(BossKV[Special[0]], s,s, PLATFORM_MAX_PATH);
+        KvGetString(CharacterConfigs[Special[0]], s,s, PLATFORM_MAX_PATH);
         decl client;
         if (plugin == INVALID_HANDLE)
             client = 0;
