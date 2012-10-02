@@ -46,6 +46,7 @@ new Special[MAXPLAYERS+1];
 new Incoming[MAXPLAYERS+1];
 new MusicIndex;
 
+//Damage is the damage dealt by the given player (indexed by client ID).
 new Damage[MAXPLAYERS + 1];
 new curHelp[MAXPLAYERS + 1];    
 
@@ -61,19 +62,19 @@ new curHelp[MAXPLAYERS + 1];
 #define FF2FLAGS_SPAWN              ~FF2FLAG_UBERREADY & ~FF2FLAG_ISBUFFED & ~FF2FLAG_TALKING & ~FF2FLAG_ALLOWSPAWNINBOSSTEAM & FF2FLAG_USEBOSSTIMER & ~FF2FLAG_USINGABILITY
 new FF2flags[MAXPLAYERS + 1];
 
-new Boss[MAXPLAYERS+1];
-new BossHealthMax[MAXPLAYERS+1];
-new BossHealth[MAXPLAYERS+1];
-new BossHealthLast[MAXPLAYERS+1];
-new BossLives[MAXPLAYERS+1];
-new BossLivesMax[MAXPLAYERS+1];
-new Float:BossCharge[MAXPLAYERS+1][8];
-new Float:Stabbed[MAXPLAYERS+1];
-new Float:KSpreeTimer[MAXPLAYERS+1];
-new KSpreeCount[MAXPLAYERS+1];
-new Float:GlowTimer[MAXPLAYERS+1];
-new TFClassType:LastClass[MAXPLAYERS+1];
-new shortname[MAXPLAYERS+1];            //new SerPointsToZeroTarget[MAXPLAYERS+1];
+new              Boss[MAXPLAYERS+1];
+new              BossHealth[MAXPLAYERS+1];
+new              BossHealthLast[MAXPLAYERS+1];
+new              BossHealthMax[MAXPLAYERS+1];
+new              BossLives[MAXPLAYERS+1];
+new              BossLivesMax[MAXPLAYERS+1];
+new Float:       BossCharge[MAXPLAYERS+1][8];
+new Float:       Stabbed[MAXPLAYERS+1];
+new Float:       KSpreeTimer[MAXPLAYERS+1];
+new              KSpreeCount[MAXPLAYERS+1];
+new Float:       GlowTimer[MAXPLAYERS+1];
+new TFClassType: LastClass[MAXPLAYERS+1];
+new              shortname[MAXPLAYERS+1];            //new SerPointsToZeroTarget[MAXPLAYERS+1];
 
 new timeleft;
 
@@ -141,7 +142,7 @@ new bool:isSubPluginsEnabled;
 
 // Healthbar-related things
 new healthBarEntity = -1;
-new bossEntity = -1; // Track Monoculus for health bar
+new bossEntity = -1; // Track the boss for health bar
 
 static const String:FF2_VERSION_TITLES[][] =      //the last line of this is what determines the displayed plugin version
 {
@@ -760,7 +761,7 @@ public LoadCharacter(const String:character[])
         Format(buffer, 10, "ability%i", abilityCount);
         if (KvJumpToKey(newCharConfig, buffer))
         {
-            KvGetString(newCharConfig, "plugin_name", pluginName, sizeof(pluginName));
+            KvGetString(newCharConfig, "pluginName", pluginName, sizeof(pluginName));
             BuildPath(Path_SM, pluginPath, sizeof(pluginPath), "plugins/freaks/%s.ff2", pluginName);
             if (!FileExists(pluginPath))
             {
@@ -1314,8 +1315,8 @@ public Action:BossInfoTimer_showinfo(Handle:hTimer,any:index)
         KvRewind(CharacterConfigs[Special[index]]);
         if (KvJumpToKey(CharacterConfigs[Special[index]],s))
         {
-            decl String:plugin_name[64];
-            KvGetString(CharacterConfigs[Special[index]], "plugin_name",plugin_name,64);
+            decl String:pluginName[64];
+            KvGetString(CharacterConfigs[Special[index]], "pluginName",pluginName,64);
             if (KvGetNum(CharacterConfigs[Special[index]], "buttonmode",0) == 2)
             {
                 see=true;
@@ -3102,8 +3103,8 @@ public Action:BossTimer(Handle:hTimer)
             KvRewind(CharacterConfigs[Special[index]]);
             if (KvJumpToKey(CharacterConfigs[Special[index]],s))
             {
-                decl String:plugin_name[64];
-                KvGetString(CharacterConfigs[Special[index]], "plugin_name",plugin_name,64);
+                decl String:pluginName[64];
+                KvGetString(CharacterConfigs[Special[index]], "pluginName",pluginName,64);
                 slot = KvGetNum(CharacterConfigs[Special[index]], "arg0",0);
                 buttonmode = KvGetNum(CharacterConfigs[Special[index]], "buttonmode",0);
                 if (slot < 1)
@@ -3112,9 +3113,9 @@ public Action:BossTimer(Handle:hTimer)
                 KvGetString(CharacterConfigs[Special[index]], "life",s,10,"");
                 if (!s[0])
                 {
-                    decl String:ability_name[64];
-                    KvGetString(CharacterConfigs[Special[index]], "name",ability_name,64);
-                    UseAbility(ability_name,plugin_name,index,slot,buttonmode);
+                    decl String:abilityName[64];
+                    KvGetString(CharacterConfigs[Special[index]], "name",abilityName,64);
+                    UseAbility(abilityName,pluginName,index,slot,buttonmode);
                 }
                 else        
                 {
@@ -3122,9 +3123,9 @@ public Action:BossTimer(Handle:hTimer)
                     for(j = 0; j < count; j++)
                         if (StringToInt(lives[j]) == BossLives[index])
                         {
-                            decl String:ability_name[64];
-                            KvGetString(CharacterConfigs[Special[index]], "name",ability_name,64);
-                            UseAbility(ability_name,plugin_name,index,slot,buttonmode);
+                            decl String:abilityName[64];
+                            KvGetString(CharacterConfigs[Special[index]], "name",abilityName,64);
+                            UseAbility(abilityName,pluginName,index,slot,buttonmode);
                             break;
                         }
                 }
@@ -3217,10 +3218,10 @@ public Action:DoTaunt(client, const String:command[], argc)
                 KvGetString(CharacterConfigs[Special[index]], "life",s,10);       
                 if (!s[0])
                 {
-                    decl String:ability_name[64], String:plugin_name[64];
-                    KvGetString(CharacterConfigs[Special[index]], "plugin_name",plugin_name,64);
-                    KvGetString(CharacterConfigs[Special[index]], "name",ability_name,64);
-                    UseAbility(ability_name,plugin_name,index,0);
+                    decl String:abilityName[64], String:pluginName[64];
+                    KvGetString(CharacterConfigs[Special[index]], "pluginName",pluginName,64);
+                    KvGetString(CharacterConfigs[Special[index]], "name",abilityName,64);
+                    UseAbility(abilityName,pluginName,index,0);
                 }
                 else    
                 {
@@ -3228,10 +3229,10 @@ public Action:DoTaunt(client, const String:command[], argc)
                     for(j = 0; j < count; j++)
                         if (StringToInt(lives[j]) == BossLives[index])
                         {
-                            decl String:ability_name[64], String:plugin_name[64];
-                            KvGetString(CharacterConfigs[Special[index]], "plugin_name",plugin_name,64);
-                            KvGetString(CharacterConfigs[Special[index]], "name",ability_name,64);
-                            UseAbility(ability_name,plugin_name,index,0);
+                            decl String:abilityName[64], String:pluginName[64];
+                            KvGetString(CharacterConfigs[Special[index]], "pluginName",pluginName,64);
+                            KvGetString(CharacterConfigs[Special[index]], "name",abilityName,64);
+                            UseAbility(abilityName,pluginName,index,0);
                             break;
                         }
                 }                   
@@ -3569,10 +3570,10 @@ public Action:Event_OnPlayerHurt(Handle:event, const String:name[], bool:dontBro
                     KvGetString(CharacterConfigs[Special[index]], "life",s,10);   
                     if (!s[0])
                     {
-                        decl String:ability_name[64], String:plugin_name[64];
-                        KvGetString(CharacterConfigs[Special[index]], "plugin_name",plugin_name,64);
-                        KvGetString(CharacterConfigs[Special[index]], "name",ability_name,64);
-                        UseAbility(ability_name,plugin_name,index,-1);
+                        decl String:abilityName[64], String:pluginName[64];
+                        KvGetString(CharacterConfigs[Special[index]], "pluginName",pluginName,64);
+                        KvGetString(CharacterConfigs[Special[index]], "name",abilityName,64);
+                        UseAbility(abilityName,pluginName,index,-1);
                     }
                     else        
                     {
@@ -3580,10 +3581,10 @@ public Action:Event_OnPlayerHurt(Handle:event, const String:name[], bool:dontBro
                         for(j = 0; j < count; j++)
                             if (StringToInt(lives[j]) == BossLives[index])
                             {
-                                decl String:ability_name[64], String:plugin_name[64];
-                                KvGetString(CharacterConfigs[Special[index]], "plugin_name",plugin_name,64);
-                                KvGetString(CharacterConfigs[Special[index]], "name",ability_name,64);
-                                UseAbility(ability_name,plugin_name,index,-1);
+                                decl String:abilityName[64], String:pluginName[64];
+                                KvGetString(CharacterConfigs[Special[index]], "pluginName",pluginName,64);
+                                KvGetString(CharacterConfigs[Special[index]], "name",abilityName,64);
+                                UseAbility(abilityName,pluginName,index,-1);
                                 break;
                             }
                     }
@@ -4321,7 +4322,7 @@ stock CalcBossHealthMax(index)
     return health;
 }
 
-stock bool:HasAbility(index,const String:plugin_name[],const String:ability_name[])
+stock bool:HasAbility(index,const String:pluginName[],const String:abilityName[])
 {
     // If the plugin is disabled, do nothing.
     if (!Enabled)
@@ -4344,13 +4345,13 @@ stock bool:HasAbility(index,const String:plugin_name[],const String:ability_name
         Format(s,12,"ability%i",i);
         if (KvJumpToKey(CharacterConfigs[Special[index]],s))
         {
-            decl String:ability_name2[64];
-            KvGetString(CharacterConfigs[Special[index]], "name",ability_name2,64);
-            if (!strcmp(ability_name,ability_name2))
+            decl String:abilityName2[64];
+            KvGetString(CharacterConfigs[Special[index]], "name",abilityName2,64);
+            if (!strcmp(abilityName,abilityName2))
             {
-                decl String:plugin_name2[64];
-                KvGetString(CharacterConfigs[Special[index]], "plugin_name",plugin_name2,64);
-                if (!plugin_name[0] || !plugin_name2[0] || !strcmp(plugin_name,plugin_name2))
+                decl String:pluginName2[64];
+                KvGetString(CharacterConfigs[Special[index]], "pluginName",pluginName2,64);
+                if (!pluginName[0] || !pluginName2[0] || !strcmp(pluginName,pluginName2))
                     return true;
             }
             KvGoBack(CharacterConfigs[Special[index]]);
@@ -4359,7 +4360,7 @@ stock bool:HasAbility(index,const String:plugin_name[],const String:ability_name
     return false;
 }
 
-stock GetAbilityArgument(index,const String:plugin_name[],const String:ability_name[],arg,defvalue = 0)
+stock GetAbilityArgument(index,const String:pluginName[],const String:abilityName[],arg,defvalue = 0)
 {
     if (index == -1 || Special[index] == -1 || !CharacterConfigs[Special[index]])
         return 0;
@@ -4370,16 +4371,16 @@ stock GetAbilityArgument(index,const String:plugin_name[],const String:ability_n
         Format(s,10,"ability%i",i);
         if (KvJumpToKey(CharacterConfigs[Special[index]],s))
         {
-            decl String:ability_name2[64];
-            KvGetString(CharacterConfigs[Special[index]], "name",ability_name2,64);
-            if (strcmp(ability_name,ability_name2))
+            decl String:abilityName2[64];
+            KvGetString(CharacterConfigs[Special[index]], "name",abilityName2,64);
+            if (strcmp(abilityName,abilityName2))
             {
                 KvGoBack(CharacterConfigs[Special[index]]);
                 continue;
             }
-            decl String:plugin_name2[64];
-            KvGetString(CharacterConfigs[Special[index]], "plugin_name",plugin_name2,64);
-            if (plugin_name[0] && plugin_name2[0] && strcmp(plugin_name,plugin_name2))
+            decl String:pluginName2[64];
+            KvGetString(CharacterConfigs[Special[index]], "pluginName",pluginName2,64);
+            if (pluginName[0] && pluginName2[0] && strcmp(pluginName,pluginName2))
             {
                 KvGoBack(CharacterConfigs[Special[index]]);
                 continue;
@@ -4391,7 +4392,7 @@ stock GetAbilityArgument(index,const String:plugin_name[],const String:ability_n
     return 0;
 }
 
-stock Float:GetAbilityArgumentFloat(index,const String:plugin_name[],const String:ability_name[],arg,Float:defvalue = 0.0)
+stock Float:GetAbilityArgumentFloat(index,const String:pluginName[],const String:abilityName[],arg,Float:defvalue = 0.0)
 {   
     if (index == -1 || Special[index] == -1 || !CharacterConfigs[Special[index]])
         return 0.0;
@@ -4402,16 +4403,16 @@ stock Float:GetAbilityArgumentFloat(index,const String:plugin_name[],const Strin
         Format(s,10,"ability%i",i);
         if (KvJumpToKey(CharacterConfigs[Special[index]],s))
         {
-            decl String:ability_name2[64];
-            KvGetString(CharacterConfigs[Special[index]], "name",ability_name2,64);
-            if (strcmp(ability_name,ability_name2))
+            decl String:abilityName2[64];
+            KvGetString(CharacterConfigs[Special[index]], "name",abilityName2,64);
+            if (strcmp(abilityName,abilityName2))
             {
                 KvGoBack(CharacterConfigs[Special[index]]);
                 continue;
             }
-            decl String:plugin_name2[64];
-            KvGetString(CharacterConfigs[Special[index]], "plugin_name",plugin_name2,64);
-            if (plugin_name[0] && plugin_name2[0] && strcmp(plugin_name,plugin_name2))
+            decl String:pluginName2[64];
+            KvGetString(CharacterConfigs[Special[index]], "pluginName",pluginName2,64);
+            if (pluginName[0] && pluginName2[0] && strcmp(pluginName,pluginName2))
             {
                 KvGoBack(CharacterConfigs[Special[index]]);
                 continue;
@@ -4425,7 +4426,7 @@ stock Float:GetAbilityArgumentFloat(index,const String:plugin_name[],const Strin
 }
 
 //Gets the ability arguments for the given ability name for the given boss.
-stock GetAbilityArgumentString(index, const String:plugin_name[], const String:ability_name[], arg, String:buffer[], buflen, const String:defvalue[] = "")
+stock GetAbilityArgumentString(index, const String:pluginName[], const String:abilityName[], arg, String:buffer[], buflen, const String:defvalue[] = "")
 {   
     //If input is invalid, return the empty string.
     if (index == -1 || Special[index] == -1 || !CharacterConfigs[Special[index]])
@@ -4445,22 +4446,22 @@ stock GetAbilityArgumentString(index, const String:plugin_name[], const String:a
         if (KvJumpToKey(CharacterConfigs[specialIndex], s))
         {
             //Get the current ability name.
-            decl String:ability_name2[64];
-            KvGetString(CharacterConfigs[specialIndex], "name", ability_name2, 64);
+            decl String:abilityName2[64];
+            KvGetString(CharacterConfigs[specialIndex], "name", abilityName2, 64);
             
             //If the given ability isn't the current ability, skip this iteration (I think???? What's with the KVGoBack?).
-            if (strcmp(ability_name, ability_name2))
+            if (strcmp(abilityName, abilityName2))
             {
                 KvGoBack(CharacterConfigs[specialIndex]);
                 continue;
             }
             
             //Get the plugin name from the boss config data.
-            decl String:plugin_name2[64];
-            KvGetString(CharacterConfigs[specialIndex], "plugin_name", plugin_name2, 64);
+            decl String:pluginName2[64];
+            KvGetString(CharacterConfigs[specialIndex], "pluginName", pluginName2, 64);
             //If both the given plugin name and the current plugin name aren't empty, and
             //  the current plugin name is equal to the given plugin name, skip this iteration.
-            if (plugin_name[0] && plugin_name2[0] && strcmp(plugin_name, plugin_name2))
+            if (pluginName[0] && pluginName2[0] && strcmp(pluginName, pluginName2))
             {
                 //???? What's with the KVGoBack?
                 KvGoBack(CharacterConfigs[specialIndex]);
@@ -5593,13 +5594,13 @@ stock SetBossHealthFix(client, oldhealth)
     SetEntProp(client, Prop_Send, "m_iHealth", originalhealth);
 }
 
-UseAbility(const String:ability_name[],const String:plugin_name[], index, slot, buttonmode = 0)
+UseAbility(const String:abilityName[],const String:pluginName[], index, slot, buttonmode = 0)
 {
     new bool:enabled = true;
     Call_StartForward(PreAbility);
     Call_PushCell(index);
-    Call_PushString(plugin_name);
-    Call_PushString(ability_name);
+    Call_PushString(pluginName);
+    Call_PushString(abilityName);
     Call_PushCell(slot);
     Call_PushCellRef(enabled);
     Call_Finish();
@@ -5610,8 +5611,8 @@ UseAbility(const String:ability_name[],const String:plugin_name[], index, slot, 
     new Action:act = Plugin_Continue;
     Call_StartForward(OnAbility);
     Call_PushCell(index);
-    Call_PushString(plugin_name);
-    Call_PushString(ability_name);
+    Call_PushString(pluginName);
+    Call_PushString(abilityName);
     if (slot == -1)
     {
         Call_PushCell(0);
@@ -5651,7 +5652,7 @@ UseAbility(const String:ability_name[],const String:plugin_name[], index, slot, 
             {
                 Call_PushCell(2);
                 Call_Finish(act);
-                new Float:see = 100.0*0.2/GetAbilityArgumentFloat(index,plugin_name,ability_name,1,1.5);
+                new Float:see = 100.0*0.2/GetAbilityArgumentFloat(index,pluginName,abilityName,1,1.5);
                 if (BossCharge[index][slot]+see < 100)
                     BossCharge[index][slot]+= see;
                 else
@@ -5676,7 +5677,7 @@ UseAbility(const String:ability_name[],const String:plugin_name[], index, slot, 
                 CreateDataTimer(0.1,Timer_UseBossCharge,data);
                 WritePackCell(data, index);
                 WritePackCell(data, slot);
-                WritePackFloat(data, -1.0*GetAbilityArgumentFloat(index,plugin_name,ability_name,2,5.0));
+                WritePackFloat(data, -1.0*GetAbilityArgumentFloat(index,pluginName,abilityName,2,5.0));
                 ResetPack(data);
             }
             else
@@ -5700,209 +5701,269 @@ UseAbility(const String:ability_name[],const String:plugin_name[], index, slot, 
     }
 }
     
-public Action:Timer_UseBossCharge(Handle:hTimer,Handle:data)
+public Action:Timer_UseBossCharge(Handle:hTimer, Handle:data)
 {
     BossCharge[ReadPackCell(data)][ReadPackCell(data)] = ReadPackFloat(data);
     return Plugin_Continue;
 }
 
 // Is the plugin enabled?
-public Native_IsEnabled(Handle:plugin,numParams)
+public Native_IsEnabled(Handle:plugin, numParams)
 {
     return Enabled;
 }
 
-// Get the user ID of the boss if it exists
-public Native_GetBoss(Handle:plugin,numParams)
+// GetBoss(int: client ID)
+// Get the user ID of the given boss if it exists.
+public Native_GetBoss(Handle:plugin, numParams)
 {
-    new i = GetNativeCell(1);
-    if (i > -1 && i < MaxClients+1 && IsValidClient(Boss[i]))
-        return GetClientUserId(Boss[i]);
+    //Get native data.
+    new index = GetNativeCell(1);
+    
+    //If the given index is within bounds and points to a valid boss, return his ID.
+    if (index > -1 && index < MaxClients + 1 && IsValidClient(Boss[index]))
+        return GetClientUserId(Boss[index]);
     return -1;
 }
 
-// Get the boss's index
-public Native_GetIndex(Handle:plugin,numParams)
+// GetIndex(int: client ID)
+// Get the boss index of the given client ID.
+public Native_GetIndex(Handle:plugin, numParams)
 {
     return GetBossIndex(GetNativeCell(1));
 }
 
 // Get the boss's team
-public Native_GetTeam(Handle:plugin,numParams)
+public Native_GetTeam(Handle:plugin, numParams)
 {
     return BossTeam;
 }
 
-public Native_GetSpecial(Handle:plugin,numParams)
+//Gets the given special.
+public Native_GetSpecial(Handle:plugin, numParams)
 {
+    //Get initial data.
     new index = GetNativeCell(1);
-    new dstrlen = GetNativeCell(3);
-    decl String:s[dstrlen];
-    //if (isNumOfSpecial)
-    new see=GetNativeCell(4);
-    if (see)
-    {
-        if (index<0) return false;
-        if (!CharacterConfigs[index]) return false;
-        KvRewind(CharacterConfigs[index]);
-        KvGetString(CharacterConfigs[index], "name", s, dstrlen);
-        SetNativeString(2, s,dstrlen);
+    if (index < 0) return false;
+    
+    //If the 4th argument is false, the given index was a boss index and not a special index.
+    if (GetNativeCell(4)) {
+        index = Special[index];
+        if (index < 0) return false;
     }
-    else
-    {
-        if (index<0) return false;
-        if (Special[index]<0) return false;
-        if (!CharacterConfigs[Special[index]]) return false;
-        KvRewind(CharacterConfigs[Special[index]]);
-        KvGetString(CharacterConfigs[Special[index]], "name", s, dstrlen);
-        SetNativeString(2, s,dstrlen);
-    }
+    
+    //Get buffer data.
+    new bufferSize = GetNativeCell(3);
+    decl String:s[bufferSize];
+    //???? It creates its own buffer in this function ("s"); no buffer is passed in. shouldn't it be new String:s = GetNativeCell(2) or something?
+    
+    //If there are no character configs for the index, return false.
+    if (!CharacterConfigs[index]) return false;
+    
+    //Reset the config data reader.
+    KvRewind(CharacterConfigs[index]);
+    //Get the name of the boss.
+    KvGetString(CharacterConfigs[index], "name", s, bufferSize);
+    //Set the buffer to that value.
+    SetNativeString(2, s, bufferSize);
+        
     return true;
 }
 
 // Get the boss's current HP
-public Native_GetHealth(Handle:plugin,numParams)
+public Native_GetHealth(Handle:plugin, numParams)
 {
     return BossHealth[GetNativeCell(1)];
 }
 
-// Get the boss's current max HP
-public Native_GetHealthMax(Handle:plugin,numParams)
+// Get the boss's current max HP.
+public Native_GetHealthMax(Handle:plugin, numParams)
 {
     return BossHealthMax[GetNativeCell(1)];
 }
 
-public Native_GetBossCharge(Handle:plugin,numParams)
+//FF2_GetBossCharge(int: boss index, int: charge meter slot)
+//Gets the given boss's given charge meter value.
+public Native_GetBossCharge(Handle:plugin, numParams)
 {
+    //Get native data.
     new index = GetNativeCell(1);
     new slot = GetNativeCell(2);
+    
+    //Get value from the array.
     return _:BossCharge[index][slot];
 }
 
-public Native_SetBossCharge(Handle:plugin,numParams)
+//FF2_SetBossCharge(int: boss index, int: charge meter slot, Float: new charge value)
+//Sets the given boss's given charge meter to the given value.
+public Native_SetBossCharge(Handle:plugin, numParams)
 {
+    //Get native data.
     new index = GetNativeCell(1);
     new slot = GetNativeCell(2);
+    
+    //Set the charge.
     BossCharge[index][slot] = Float:GetNativeCell(3);
 }
 
-public Native_GetRoundState(Handle:plugin,numParams)
+//Gets the current round state.
+public Native_GetRoundState(Handle:plugin, numParams)
 {
     if (FF2RoundState <= 0)
         return 0;
     return FF2RoundState;
 }
 
-public Native_GetRageDist(Handle:plugin,numParams)
+//FF2_GetRageDist(int: boss index, const String: plugin name, const String: ability name or "")
+//Gets the given boss's rage distance.
+public Native_GetRageDist(Handle:plugin, numParams)
 {
+    //Get the local arguments.
     new index = GetNativeCell(1);
-    decl String:plugin_name[64];    
-    GetNativeString(2,plugin_name,64);
-    decl String:ability_name[64];   
-    GetNativeString(3,ability_name,64);
+    decl String:pluginName[64];    
+    GetNativeString(2,pluginName,64);
+    decl String:abilityName[64];   
+    GetNativeString(3,abilityName,64);
 
+    //If the character configurations for the given boss don't exist, return 0.0 for the rage dist.
     if (!CharacterConfigs[Special[index]]) return _:0.0;
+    
+    //Reset the config data reader.
     KvRewind(CharacterConfigs[Special[index]]);
-    decl Float:see;
-    if (!ability_name[0])
-    {
-        return _:KvGetFloat(CharacterConfigs[Special[index]],"ragedist",400.0);
-    }
+    new Float:dist;
+    
+    //If the ability name is absent, use the default name "ragedist".
+    if (!abilityName[0])
+        return _:KvGetFloat(CharacterConfigs[Special[index]]," ragedist", 400.0);
+        
+    //Otherwise, go through each ability to see if we can find the one with the given name.
     decl String:s[10];
-    for(new i = 1; i < MAXRANDOMS; i++)
+    decl String:abilityName2[64];
+    for (new i = 1; i < MAXRANDOMS; i++)
     {
-        Format(s,10,"ability%i",i);
-        if (KvJumpToKey(CharacterConfigs[Special[index]],s))
+        Format(s, 10, "ability%i", i);
+        //Try to get the ability with the current number.
+        if (KvJumpToKey(CharacterConfigs[Special[index]], s))
         {
-            decl String:ability_name2[64];
-            KvGetString(CharacterConfigs[Special[index]], "name",ability_name2,64);
-            if (strcmp(ability_name,ability_name2))
+            KvGetString(CharacterConfigs[Special[index]], "name", abilityName2, 64);
+            
+            //If the two strings aren't equal, skip this iteration.
+            if (strcmp(abilityName, abilityName2))
             {
                 KvGoBack(CharacterConfigs[Special[index]]);
                 continue;
             }
-            if ((see = KvGetFloat(CharacterConfigs[Special[index]],"dist",-1.0)) < 0)
+            
+            //Try to find the ability "dist" for the value.
+            //   If that doesn't work, try to grab the ability "ragedist".
+            //   If that doesn't work, use the default value of 400.0.
+            dist = KvGetFloat(CharacterConfigs[Special[index]],"dist", -1.0);
+            if (dist < 0)
             {
                 KvRewind(CharacterConfigs[Special[index]]);
-                see = KvGetFloat(CharacterConfigs[Special[index]],"ragedist",400.0);
+                dist = KvGetFloat(CharacterConfigs[Special[index]], "ragedist", 400.0);
             }
-            return _:see;
+            return _:dist;
         }
     }
+    
+    //No ability was found, so return zero.
     return _:0.0;
 }
 
-public Native_HasAbility(Handle:plugin,numParams)
+//FF2_HasAbility(int: boss index, const String: plugin name, const String: ability name)
+//Finds if the given boss has the given ability.
+public Native_HasAbility(Handle:plugin, numParams)
 {
-    decl String:plugin_name[64];    
-    decl String:ability_name[64];   
-    GetNativeString(2,plugin_name,64);
-    GetNativeString(3,ability_name,64);
-    //return HasAbility(index,plugin_name,ability_name);
-    return HasAbility(GetNativeCell(1),plugin_name,ability_name);
+    //Get the native arguments.
+    decl String:pluginName[64];    
+    decl String:abilityName[64];   
+    GetNativeString(2,pluginName,64);
+    GetNativeString(3,abilityName,64);
+    
+    //Call the local function.
+    return HasAbility(GetNativeCell(1), pluginName, abilityName);
 }
 
-//native FF2_DoAbility(index, const String:plugin_name[], const String:ability_name[], slot, buttonmode = 0)
+//FF2_DoAbility(int: index, const String: plugin name, const String: ability name,
+//              int: charge meter slot, int: which button triggers it)
 //Uses the given ability.
-public Native_DoAbility(Handle:plugin,numParams)
+public Native_DoAbility(Handle:plugin, numParams)
 {
-    decl String:plugin_name[64];    
-    decl String:ability_name[64];   
-    GetNativeString(2,plugin_name,64);
-    GetNativeString(3,ability_name,64);
-    //UseAbility(const String:ability_name[],const String:plugin_name[], index, slot, buttonmode = 0)
-    UseAbility(ability_name,plugin_name, GetNativeCell(1), GetNativeCell(4), GetNativeCell(5));
+    //Get the native arguments.
+    decl String:pluginName[64];    
+    decl String:abilityName[64];   
+    GetNativeString(2,pluginName,64);
+    GetNativeString(3,abilityName,64);
+    
+    //Call the local function.
+    UseAbility(abilityName,pluginName, GetNativeCell(1), GetNativeCell(4), GetNativeCell(5));
 }
 
-//FF2_GetAbilityArgument(int: boss index, const String: plugin with this ability, const String: ability name,
+//FF2_GetAbilityArgument(int: boss index, const String: plugin name, const String: ability name,
 //                       int: number of arguments, default value if ability is not defined.
 //Gets the given ability argument.
-public Native_GetAbilityArgument(Handle:plugin,numParams)
+public Native_GetAbilityArgument(Handle:plugin, numParams)
 { 
-    decl String:plugin_name[64];    
-    decl String:ability_name[64];   
-    GetNativeString(2,plugin_name,64);
-    GetNativeString(3,ability_name,64);
-    //return GetAbilityArgument(index,plugin_name,ability_name,s,defvalue);
-    return GetAbilityArgument(GetNativeCell(1),plugin_name,ability_name,GetNativeCell(4),GetNativeCell(5));
+    //Get the native arguments.
+    decl String:pluginName[64];    
+    decl String:abilityName[64];   
+    GetNativeString(2,pluginName,64);
+    GetNativeString(3,abilityName,64);
+    
+    //Call the local function.
+    return GetAbilityArgument(GetNativeCell(1), pluginName, abilityName,
+                              GetNativeCell(4), GetNativeCell(5));
 }
 
-//FF2_GetAbilityArgumentFloat(int: boss index, const String: plugin with this ability, const String: ability name,
+//FF2_GetAbilityArgumentFloat(int: boss index, const String: plugin name, const String: ability name,
 //                            int: number of arguments, Float: default value if argument is undefined)
 //Gets the given ability argument as a float.
-public Native_GetAbilityArgumentFloat(Handle:plugin,numParams)
+public Native_GetAbilityArgumentFloat(Handle:plugin, numParams)
 { 
-    decl String:plugin_name[64];    
-    decl String:ability_name[64];   
-    GetNativeString(2, plugin_name, 64);
-    GetNativeString(3, ability_name, 64);
-    //return _:GetAbilityArgumentFloat(index,plugin_name,ability_name,argument,defvalue);
-    return _:GetAbilityArgumentFloat(GetNativeCell(1), plugin_name, ability_name, GetNativeCell(4), GetNativeCell(5));
+    //Get the native arguments.
+    decl String:pluginName[64];    
+    decl String:abilityName[64];   
+    GetNativeString(2, pluginName, 64);
+    GetNativeString(3, abilityName, 64);
+    
+    //Call the local function.
+    return _:GetAbilityArgumentFloat(GetNativeCell(1), pluginName, abilityName,
+                                     GetNativeCell(4), GetNativeCell(5));
 }
 
 //FF2_GetAbilityArgumentString(int: boss index, const String: plugin with this ability, const String: ability name,
 //                             int: number of arguments, String: result buffer, int: result buffer length)
-// index, plugin, ability, numbArguments, return buffer, buffer length
 //Gets the given ability argument as a string.
-public Native_GetAbilityArgumentString(Handle:plugin,numParams)
+public Native_GetAbilityArgumentString(Handle:plugin, numParams)
 { 
-    decl String:plugin_name[64];    
-    GetNativeString(2,plugin_name,64);
-    decl String:ability_name[64];   
-    GetNativeString(3,ability_name,64);
-    new dstrlen = GetNativeCell(6);
-    new String:s[dstrlen+1];
-    //GetAbilityArgumentString(index,plugin_name,ability_name,argument,s,dstrlen);
-    GetAbilityArgumentString(GetNativeCell(1),plugin_name,ability_name,GetNativeCell(4),s,dstrlen);
-    SetNativeString(5,s,dstrlen);   
+    //Get the native arguments.
+    decl String:pluginName[64];    
+    GetNativeString(2,pluginName,64);
+    decl String:abilityName[64];   
+    GetNativeString(3,abilityName,64);
+    
+    //Set up the result buffer.
+    new bufferLen = GetNativeCell(6);
+    new String:s[bufferLen + 1];
+    
+    //Store the result in the buffer.
+    //???? There are two different function calls that apparently store a value in the buffer?
+    GetAbilityArgumentString(GetNativeCell(1), pluginName, abilityName, GetNativeCell(4), s, bufferLen);
+    SetNativeString(5, s, bufferLen);   
 }
 
-//Gets the damage dealth to the given client boss.
-public Native_GetDamage(Handle:plugin,numParams)
+//Gets the damage dealt to the boss by the given client.
+public Native_GetDamage(Handle:plugin, numParams)
 {
+    //Get the client.
     new client = GetNativeCell(1);
+    
+    //If the client is invalid, return 0 damage dealt.
     if (!IsValidClient(client))
         return 0;
+        
+    //Otherwise grab the damage amount.
     return Damage[client];
 }
 

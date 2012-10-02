@@ -138,7 +138,7 @@ native FF2_GetClientDamage(client);
  * @param ability_name 	Name of ability (use null string if you want get boss' global "ragedist" value)
  * @return		    	
  */
-native Float:FF2_GetRageDist(index=0 , const String:plugin_name[]="", const String:ability_name[]="");
+native Float:FF2_GetRageDist(index = 0 , const String:plugin_name[] = "", const String:ability_name[] = "");
 
 /**
  * Does Boss have ability?
@@ -176,7 +176,6 @@ native bool:FF2_HasAbilityEx(index, const String:ability_name[]);
  * @noreturn
  */
 native FF2_DoAbility(index, const String:plugin_name[], const String:ability_name[], slot, buttonmode=0);
-
 
 /**
  * Gets integer argument of ability
