@@ -774,91 +774,118 @@ public LoadCharacter(const String:character[])
         else
             break;
     }
+
     KvRewind(newCharConfig);
-    
-    decl String:s2[PLATFORM_MAX_PATH];
-    decl String:s3[64];
 
-
+    //Fetch some info from the config
     decl String:charName[64];
-
     KvSetString(newCharConfig, "filename", character);
     KvGetString(newCharConfig, "name", charName, sizeof(charName));
     IsVoiceDisabled[NumLoadedCharacters] = bool:KvGetNum(newCharConfig, "sound_block_vo", 0);
-    CharacterSpeed[NumLoadedCharacters] = KvGetFloat(CharacterConfigs[NumLoadedCharacters],"maxspeed",340.0);
-    CharacterRageDmg[NumLoadedCharacters] = KvGetFloat(CharacterConfigs[NumLoadedCharacters],"ragedamage",1900.0);
-    KvGotoFirstSubKey(CharacterConfigs[NumLoadedCharacters]);
-    decl i,is;
-    BuildPath(Path_SM,s,PLATFORM_MAX_PATH,"configs/freak_fortress_2/characters.cfg");
-    while (KvGotoNextKey(CharacterConfigs[NumLoadedCharacters]))
+    CharacterSpeed[NumLoadedCharacters] = KvGetFloat(newCharConfig, "maxspeed", 340.0);
+    CharacterRageDmg[NumLoadedCharacters] = KvGetFloat(newCharConfig, "ragedamage", 1900.0);
+    
+    decl String:charactersConfigPath[PLATFORM_MAX_PATH];
+    BuildPath(
+        Path_SM, 
+        charactersConfigPath, sizeof(charactersConfigPath), 
+        "configs/freak_fortress_2/characters.cfg"
+    );
+
+    decl String:configSectionName[64], String:numberBuffer[4], String:valueBuffer[64];
+    KvGotoFirstSubKey(newCharConfig);
+    while (KvGotoNextKey(newCharConfig))
     {   
-        KvGetSectionName(CharacterConfigs[NumLoadedCharacters], s3, 64);
-        if (!strcmp(s3,"download"))
+        KvGetSectionName(newCharConfig, configSectionName, sizeof(configSectionName));
+        
+        //Files to be downloaded
+        if (StrEqual(configSectionName, "download"))
         {
-            for(i = 1; ; i++)
+            new i = 1;
+            while (true)
             {
-                IntToString(i,s2,4);
-                KvGetString(CharacterConfigs[NumLoadedCharacters], s2, s, PLATFORM_MAX_PATH);
-                if (!s[0])
+                IntToString(i, numberBuffer, sizeof(numberBuffer));
+                KvGetString(newCharConfig, numberBuffer, valueBuffer, sizeof(valueBuffer));
+                if (strlen(valueBuffer) == 0)
                     break;
-                AddFileToDownloadsTable(s);
+                AddFileToDownloadsTable(valueBuffer);
+                i++;
             }
         }
-        else if (!strcmp(s3,"mod_precache"))
+        //Models to be precached
+        else if (StrEqual(configSectionName, "mod_precache"))
         {   
-            for(i = 1; ; i++)
+            new i = 1;
+            while (true)
             {
-                IntToString(i,s2,4);
-                KvGetString(CharacterConfigs[NumLoadedCharacters], s2, s, PLATFORM_MAX_PATH);
-                if (!s[0])
+                IntToString(i, numberBuffer, sizeof(numberBuffer));
+                KvGetString(newCharConfig, numberBuffer, valueBuffer, sizeof(valueBuffer));
+                if (strlen(valueBuffer) == 0)
                     break;
-                PrecacheModel(s,true);
+                PrecacheModel(valueBuffer, true);
+                i++;
             }
         }
-        else if (!strcmp(s3,"mod_download"))
+        //Models to be downloaded
+        else if (StrEqual(configSectionName, "mod_download"))
         {   
-            for(i = 1; ; i++)
+            new i = 0;
+            while (true)
             {
-                IntToString(i,s2,4);
-                KvGetString(CharacterConfigs[NumLoadedCharacters], s2, s, PLATFORM_MAX_PATH);
-                if (!s[0])
+                IntToString(i, numberBuffer, sizeof(numberBuffer));
+                KvGetString(newCharConfig, numberBuffer, valueBuffer, sizeof(valueBuffer));
+                if (strlen(valueBuffer) == 0)
                     break;
-                for (is = 0;  is < sizeof(extensions);  is++)
+                decl String:file[PLATFORM_MAX_PATH];
+                for (new j = 0; j < sizeof(extensions); j++)
                 {
-                    Format(s2,PLATFORM_MAX_PATH,"%s%s",s,extensions[is]);
-                    AddFileToDownloadsTable(s2);
+                    Format(file, sizeof(file), "%s%s", valueBuffer, extensions[j]);
+                    AddFileToDownloadsTable(file);
                 }
+                i++;
             }
         }
-        else if (!strcmp(s3,"mat_download"))
+        //Materials to be downloaded
+        else if (StrEqual(configSectionName, "mat_download"))
         {   
-            for(i = 1; ; i++)
+            new i = 0;
+            while (true)
             {
-                IntToString(i,s2,4);
-                KvGetString(CharacterConfigs[NumLoadedCharacters], s2, s, PLATFORM_MAX_PATH);
-                if (!s[0])
+                IntToString(i, numberBuffer, sizeof(numberBuffer));
+                KvGetString(newCharConfig, numberBuffer, valueBuffer, sizeof(valueBuffer));
+                if (strlen(valueBuffer) == 0)
                     break;
-                Format(s2,PLATFORM_MAX_PATH,"%s.vtf",s);
-                AddFileToDownloadsTable(s2);
-                Format(s2,PLATFORM_MAX_PATH,"%s.vmt",s);
-                AddFileToDownloadsTable(s2);
+                decl String:filePath[PLATFORM_MAX_PATH];
+                Format(filePath, sizeof(filePath), "%s.vtf", valueBuffer);
+                AddFileToDownloadsTable(filePath);
+                Format(filePath, sizeof(filePath), "%s.vmt", valueBuffer);
+                AddFileToDownloadsTable(filePath);
+                i++;
             }
         }
-        else if (!StrContains(s3,"sound_") || !strcmp(s3,"catch_phrase"))
-        {   
-            for(i = 1; ; i++)
+        //Sounds to be precached
+        else if (!StrContains(configSectionName, "sound_") 
+                 || StrEqual(configSectionName, "catch_phrase"))
+        {
+            new i = 0;
+            while (true)
             {
-                IntToString(i,s2,4);
-                KvGetString(CharacterConfigs[NumLoadedCharacters], s2, s, PLATFORM_MAX_PATH);
-                if (!s[0])
+                IntToString(i, numberBuffer, sizeof(numberBuffer));
+                KvGetString(newCharConfig, numberBuffer, valueBuffer, sizeof(valueBuffer));
+                if (strlen(valueBuffer) == 0)
                     break;
-                PrecacheSound(s,true);
+                PrecacheSound(valueBuffer, true);
+                i++;
             }
         }
     }
+
+    //Successully loaded, increment the character counter.
     NumLoadedCharacters++;
 }
 
+
+//
 public OnConVarChanged(Handle:convar, const String:oldValue[], const String:newValue[])
 {
     if (convar == cvar_PointEnableDelayPerPlayer)
