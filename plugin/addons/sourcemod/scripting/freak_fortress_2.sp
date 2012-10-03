@@ -5392,22 +5392,22 @@ public Action:HookSound(clients[64], &numClients, String:sample[PLATFORM_MAX_PAT
 }
 
 // SetAmmo: Int x Int x Int -> void
-// Set the ammo of a given client / weapon to a given amount
+// Set the ammo of a given client/weapon to a given amount
 stock SetAmmo(client, slot, ammo)
 {
     // Get the entity ID of the weapon in the given weapon slot
     new weapon = GetPlayerWeaponSlot(client, slot);
-    // If the weapon exists
+    // If the weapon exists, set its ammo.
     if (IsValidEntity(weapon))
     {
         // Get property memory offset for the ammo value stored in the given weapon's properties
-        new iOffset = GetEntProp(weapon, Prop_Send, "m_iPrimaryAmmoType", 1)*4;
+        new iOffset = GetEntProp(weapon, Prop_Send, "m_iPrimaryAmmoType", 1) * 4;
         
         // Get the memory address of the player ammo table
         new iAmmoTable = FindSendPropInfo("CTFPlayer", "m_iAmmo");
         
-        // Get the ammo of the given player / weapon (stored in ammo table + weapon's offset)
-        SetEntData(client, iAmmoTable+iOffset, ammo, 4, true);
+        // Get the ammo of the given player/weapon (stored at offset "ammo table + weapon's offset")
+        SetEntData(client, iAmmoTable + iOffset, ammo, 4, true);
     }
 }
 
@@ -5437,25 +5437,34 @@ stock GetAmmo(client, slot)
     return 0;
 }
 
-stock GetHealingTarget(client,bool:checkgun = false)
+//Gets the target that the given client is healing with his medigun, or -1 if there is no target/no medigun.
+//If "checkGun" is true, all weapons with healing ability are checked, not just mediguns.
+stock GetHealingTarget(client, bool:checkNonMedigun = false)
 {
+    //Get some data.
+    new gun = GetPlayerWeaponSlot(client, TFWeaponSlot_Secondary);
+    
+    //If all guns should be checked, just make sure it is a weapon with some healing capability.
+    if (!checkNonMedigun)
+    {
+        if (GetEntProp(gun, Prop_Send, "m_bHealing"))
+            return GetEntPropEnt(gun, Prop_Send, "m_hHealingTarget");
+        else return -1;
+    }
+    
+    //If the gun is invalid, exit.
+    if (!IsValidEdict(gun))
+        return -1;
+        
+    //Only check mediguns.
     decl String:s[64];
-    new medigun = GetPlayerWeaponSlot(client, TFWeaponSlot_Secondary);
-    if (!checkgun)
-    {
-        if(GetEntProp(medigun, Prop_Send, "m_bHealing"))
-            return GetEntPropEnt(medigun, Prop_Send, "m_hHealingTarget");
+    GetEdictClassname(gun, s, sizeof(s));
+    
+    if (strcmp(s, "tf_weapon_medigun", false) == 0 &&
+        GetEntProp(gun, Prop_Send, "m_bHealing"))
+        return GetEntPropEnt(gun, Prop_Send, "m_hHealingTarget");
+    else
         return -1;
-    }
-    if (!IsValidEdict(medigun))
-        return -1;
-    GetEdictClassname(medigun, s, sizeof(s));
-    if (strcmp(s, "tf_weapon_medigun", false) == 0)
-    {
-        if(GetEntProp(medigun, Prop_Send, "m_bHealing"))
-            return GetEntPropEnt(medigun, Prop_Send, "m_hHealingTarget");
-    }
-    return -1;
 }
 
 //Finds if the given client is a valid client.
