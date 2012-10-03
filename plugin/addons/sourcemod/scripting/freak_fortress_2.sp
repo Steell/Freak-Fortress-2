@@ -5412,7 +5412,7 @@ stock SetAmmo(client, slot, ammo)
 }
 
 // GetAmmo: Int x Int -> Int
-// Given a client's ID and one of their weapon slots, returns the current ammo amount in the slot
+// Given a client's ID and one of their weapon slots, returns the current ammo amount in the slot.
 stock GetAmmo(client, slot)
 {
     // If the given ID isn't valid, do nothing
@@ -5458,89 +5458,132 @@ stock GetHealingTarget(client,bool:checkgun = false)
     return -1;
 }
 
-stock IsValidClient(client, bool:replaycheck = true)
+//Finds if the given client is a valid client.
+//If "replayCheck" is true, this function checks if the client is a fake "replay" or "sourceTV" entity
+// ("replay" or "sourceTV" entities will return false).
+stock IsValidClient(client, bool:replayCheck = true)
 {
+    //If the ID is out of range, it isn't valid.
     if (client <= 0 || client > MaxClients) return false;
+    //If the client isn't in-game, it isn't valid.
     if (!IsClientInGame(client)) return false;
+    //If the client is coaching ????, it isn't valid.
     if (GetEntProp(client, Prop_Send, "m_bIsCoaching")) return false;
-    if (replaycheck)
+    
+    //Check for replay or sourceTV entities?
+    if (replayCheck)
     {
-        decl String:adminname[32];
+        //Some strings holding names.
+        decl String:adminName[32];
     //  decl String:auth[32];
         decl String:name[32];
+
         new AdminId:admin;
+        
+        //Get the name.
         GetClientName(client, name, sizeof(name));
     //  GetClientAuthString(client, auth, sizeof(auth));
+    
+        //If the client's name is "replay" and it isn't a real client, the client is the "replay" entity.
         if (strcmp(name, "replay", false) == 0 && IsFakeClient(client)) return false;
-        if ((admin = GetUserAdmin(client)) != INVALID_ADMIN_ID)
+        
+        //If the client is an admin, see if its name is "replay" or "sourceTV".
+        admin = GetUserAdmin(client);
+        if (admin != INVALID_ADMIN_ID)
         {
-            GetAdminUsername(admin, adminname, sizeof(adminname));
-            if (strcmp(adminname, "Replay", false) == 0 || strcmp(adminname, "SourceTV", false) == 0) return false;
+            GetAdminUsername(admin, adminName, sizeof(adminName));
+            if (strcmp(adminName, "Replay", false) == 0 || strcmp(adminName, "SourceTV", false) == 0) return false;
         }
     }
+    
+    //All checks passed, so this client is valid.
     return true;
 }
 
+//???? I think param1 is a client id, and param2 is possibly a boolean?
 public NextmapPanelH(Handle:menu, MenuAction:action, param1, param2)
 {   
+    //If something was selected and ? is equal to one, 
     if (action == MenuAction_Select && param2 == 1)
     {
         new clients[1];
         clients[0] = param1;
         if (!IsVoteInProgress())
-            VoteMenu(menu, clients,param1, 1,9001);
+            VoteMenu(menu, clients, param1, 1, 9001);
     }
     return;
 }
 
-
-public NextmapPanelH2(Handle:menu,num_votes,num_clients,const client_info[][2],num_items, const item_info[][2])
+public NextmapPanelH2(Handle:menu, num_votes, num_clients, const client_info[][2], num_items, const item_info[][2])
 {
     decl String:mode[42], String:nextmap[42];
-    GetMenuItem(menu, item_info[0][VOTEINFO_ITEM_INDEX], mode,42);
+    
+    GetMenuItem(menu, item_info[0][VOTEINFO_ITEM_INDEX], mode, 42);
+    
     if (mode[0] == '0')
         FF2CharSet = GetRandomInt(0,FF2CharSet);
     else
         FF2CharSet=mode[0]-'0'-1;
-    GetConVarString(cvarNextmap,nextmap,42);
-    strcopy(FF2CharSetStr,42,mode[StrContains(mode," ")+1]);
+        
+    GetConVarString(cvarNextmap,nextmap, 42);
+    strcopy(FF2CharSetStr, 42, mode[StrContains(mode, " ") + 1]);
+    
     CPrintToChatAll("%t","nextmap_charset",nextmap,FF2CharSetStr);
 }
 
+//???? So every time the next map changes, a vote is called to change it again?
+//When the next map changes, call a vote to choose the next map.
 public OnNextmapChanged(Handle:convar, const String:oldValue[], const String:newValue[])
 {   
-    CreateTimer(0.1,Timer_OnNextmapChanged);
+    CreateTimer(0.1, Timer_OnNextmapChanged);
 }
 
+//Create the menu for voting on maps.
 public Action:Timer_OnNextmapChanged(Handle:hTimer)
-{       
+{
+    //If people are still voting, don't re-initialize the vote.
     if (IsVoteInProgress())
         return Plugin_Continue;
+    
+    //Create the voting menu.
     new Handle:dVoteMenu = CreateMenu(NextmapPanelH, MenuAction:MENU_ACTIONS_ALL);
     SetMenuTitle(dVoteMenu, "%t","select_charset");
     SetVoteResultCallback(dVoteMenu, NextmapPanelH2);
 
+    //Grab data from the "characters.cfg" file.
     decl String:s[PLATFORM_MAX_PATH], String:s2[64];
-    BuildPath(Path_SM,s,PLATFORM_MAX_PATH,"configs/freak_fortress_2/characters.cfg");
+    BuildPath(Path_SM, s, PLATFORM_MAX_PATH, "configs/freak_fortress_2/characters.cfg");
     new Handle:Kv = CreateKeyValues("");
     FileToKeyValues(Kv, s);
-    AddMenuItem(dVoteMenu,"0 Random", "Random");
-    new i,j;
+    //Add the "Random" map choice option.
+    AddMenuItem(dVoteMenu, "0 Random", "Random");
+    
+    //Go through every map in the config file.
+    //i counts the number of maps listed.
+    //j counts the number of non-hidden maps listed.
+    new i = 0, j = 0;
     do
     {
         i++;
-        if (KvGetNum(Kv, "hidden",0))
+        //If the map should be hidden, stop.
+        if (KvGetNum(Kv, "hidden", 0))
             continue;
+
         j++;
+        
+        //Add this map as a menu option.
         KvGetSectionName(Kv, s, 64);
-        Format(s2,64,"%i %s",i,s);
-        AddMenuItem(dVoteMenu,s2,s);
+        Format(s2, 64, "%i %s", i, s);
+        AddMenuItem(dVoteMenu, s2, s);
     }
     while (KvGotoNextKey(Kv));
     CloseHandle(Kv);
+    
+    //If at least one map wasn't hidden, publish the vote menu so players can vote on it.
     if (j > 1)
     {
         FF2CharSet = i;
+        //Get the vote duration. If it wasn't set, use a default value.
         new Handle:see = FindConVar("sm_mapvote_voteduration");
         if (see)
             VoteMenuToAll(dVoteMenu, GetConVarInt(see));
@@ -5551,51 +5594,79 @@ public Action:Timer_OnNextmapChanged(Handle:hTimer)
     return Plugin_Continue;
 }
 
+//Print the next map for the server to chat.
 public Action:NextMapCmd(client, args)
 {
+    //If the FF2CharSet is an empty string, stop.
     if (!FF2CharSetStr[0])
         return Plugin_Continue;
+        
+    //Get the next map.
     decl String:nextmap[42];
-    GetConVarString(cvarNextmap,nextmap,42);
-    CPrintToChat(client,"%t","nextmap_charset",nextmap,FF2CharSetStr);
+    GetConVarString(cvarNextmap, nextmap, 42);
+    
+    //Print it.
+    CPrintToChat(client, "%t", "nextmap_charset", nextmap, FF2CharSetStr);
     return Plugin_Handled;
 }
 
+//????
+//Reacts to some kind of command?
 public Action:SayCmd(client, args)
 {
     decl String:CurrentChat[128];
-    if (GetCmdArgString(CurrentChat, sizeof(CurrentChat)) < 1 || (client == 0))
+    
+    //???? Comparing a string to a number? How does that work?
+    //If the command arguments as a string is less than 1 (?) or the client is the world entity,
+    //   stop.
+    if (GetCmdArgString(CurrentChat, sizeof(CurrentChat)) < 1 ||
+        client == 0)
         return Plugin_Continue;
-    if (!strcmp(CurrentChat, "\"nextmap\"") && FF2CharSetStr[0])
+        
+    //If the command was the NextMap command and the FF2CharSet isn't "", call that function.
+    if (strcmp(CurrentChat, "\"nextmap\"") == 0 && FF2CharSetStr[0])
     {
         NextMapCmd(client,0);
         return Plugin_Handled;
     }
+    
+    //Otherwise, don't do anything.
     return Plugin_Continue; 
 }
 
+//Finds an entity by its class name,
+//    starting at the first valid entity at or before the given ID.
 stock FindEntityByClassname2(startEnt, const String:classname[])
 {
-    /* If startEnt isn't valid shifting it back to the nearest valid one */
-    while (startEnt > -1 && !IsValidEntity(startEnt)) startEnt--;
+    //Move the search starting point backwards until
+    //   it either passes the beginning or hits a valid entity.
+    while (startEnt > -1 && !IsValidEntity(startEnt))
+        startEnt--;
+        
+    //Start the search here.
     return FindEntityByClassname(startEnt, classname);
 }
-stock SetBossHealthFix(client, oldhealth)
-{
-    new originalhealth = oldhealth;
-    if (originalhealth < 4096)
-    {
-        SetEntProp(client, Prop_Send, "m_iHealth", originalhealth);
-        return;
-    }
-    oldhealth = oldhealth % 4096;
-    if (oldhealth < 5) originalhealth += 10;
 
-    SetEntProp(client, Prop_Send, "m_iHealth", originalhealth);
+//Sets the given client to the given health while keeping it constrained (or something?)
+stock SetBossHealthFix(client, oldHealth)
+{
+    new originalHealth = oldHealth;
+    
+    //???? What is the logic behind this?
+    //Is 4096 the amount of health a life is worth?
+    if (originalHealth >= 4096)
+        if (oldHealth % 4096 < 5)
+            originalHealth += 10;
+
+    SetEntProp(client, Prop_Send, "m_iHealth", originalHealth);
 }
 
-UseAbility(const String:abilityName[],const String:pluginName[], index, slot, buttonmode = 0)
+//Uses the given ability from the given plugin with the given boss (by index),
+//   using the given charge slot and the given trigger button.
+UseAbility(const String:abilityName[], const String:pluginName[], index, slot, buttonmode = 0)
 {
+    //???? No idea what these do.
+    
     new bool:enabled = true;
     Call_StartForward(PreAbility);
     Call_PushCell(index);
@@ -5700,7 +5771,7 @@ UseAbility(const String:abilityName[],const String:pluginName[], index, slot, bu
         }
     }
 }
-    
+
 public Action:Timer_UseBossCharge(Handle:hTimer, Handle:data)
 {
     BossCharge[ReadPackCell(data)][ReadPackCell(data)] = ReadPackFloat(data);
