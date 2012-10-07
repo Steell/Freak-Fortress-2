@@ -62,19 +62,19 @@ new curHelp[MAXPLAYERS + 1];
 #define FF2FLAGS_SPAWN              ~FF2FLAG_UBERREADY & ~FF2FLAG_ISBUFFED & ~FF2FLAG_TALKING & ~FF2FLAG_ALLOWSPAWNINBOSSTEAM & FF2FLAG_USEBOSSTIMER & ~FF2FLAG_USINGABILITY
 new FF2flags[MAXPLAYERS + 1];
 
-new              Boss[MAXPLAYERS+1];
-new              BossHealth[MAXPLAYERS+1];
-new              BossHealthLast[MAXPLAYERS+1];
-new              BossHealthMax[MAXPLAYERS+1];
-new              BossLives[MAXPLAYERS+1];
-new              BossLivesMax[MAXPLAYERS+1];
-new Float:       BossCharge[MAXPLAYERS+1][8];
-new Float:       Stabbed[MAXPLAYERS+1];
-new Float:       KSpreeTimer[MAXPLAYERS+1];
-new              KSpreeCount[MAXPLAYERS+1];
-new Float:       GlowTimer[MAXPLAYERS+1];
-new TFClassType: LastClass[MAXPLAYERS+1];
-new              shortname[MAXPLAYERS+1];            //new SerPointsToZeroTarget[MAXPLAYERS+1];
+new Boss[MAXPLAYERS+1];
+new BossHealth[MAXPLAYERS+1];
+new BossHealthLast[MAXPLAYERS+1];
+new BossHealthMax[MAXPLAYERS+1];
+new BossLives[MAXPLAYERS+1];
+new BossLivesMax[MAXPLAYERS+1];
+new Float:BossCharge[MAXPLAYERS+1][8];
+new Float:Stabbed[MAXPLAYERS+1];
+new Float:KSpreeTimer[MAXPLAYERS+1];
+new KSpreeCount[MAXPLAYERS+1];
+new Float:GlowTimer[MAXPLAYERS+1];
+new TFClassType:LastClass[MAXPLAYERS+1];
+new shortname[MAXPLAYERS+1];            //new SerPointsToZeroTarget[MAXPLAYERS+1];
 
 new timeleft;
 
@@ -1012,7 +1012,7 @@ stock bool:IsFF2Map()
             return true;
         }
     }
-
+    
     //Done parsing the file with no matches, return false.
     CloseHandle(fileh);
     return false;
@@ -5072,36 +5072,66 @@ public NewPanelH(Handle:menu, MenuAction:action, param1, param2)
         }
     }
 }
+
+// Given a valid client, attempts to make them a panel containing the current changelist
 public Action:Command_NewPanel(client, args)
 {
-    if (!IsValidClient(client)) return Plugin_Continue;
+    // If the client isn't valid, do nothing
+    if (!IsValidClient(client))
+        return Plugin_Continue;
+    // Else, attempt to make the changelist panel for them
     NewPanel(client, FF2_MAX_VERSION);
     return Plugin_Handled;
 }
+
+// NewPanel: Int: A client x Int: The current version of FF2 --> void
+// Sends the given client the changelist panel for the given FF2 version
 public Action:NewPanel(client, versionindex)
 {
+    // If the plugin is disabled?
     if (!Enabled2)
         return Plugin_Continue;
+    
+    // Set the current help version of the client to the given FF2 version?
     curHelp[client] = versionindex;
+    // Make a new panel
     new Handle:panel = CreatePanel();
+    // make a new string
     decl String:s[90];
     SetGlobalTransTarget(client);
+    // Format the string to be the current changelist for the given FF2 version
     Format(s,90," = %t: = ","whatsnew", FF2_VERSION_TITLES[versionindex],FF2_VERSION_DATES[versionindex]);
+    // Make the panel say the changelist
     SetPanelTitle(panel, s);
+    // Get the data for the current version of FF2
     FindVersionData(panel, versionindex);
+    // If the version is not the first
     if (versionindex > 0)
+        // Say that there is at least one older version
         Format(s,90, "%t", "older");
+    // If the version is the first
     else
+        // Say that there is no older version
         Format(s,90, "%t", "noolder");
-    DrawPanelItem(panel, s);  
+    // Draw the changelist panel with older version message
+    DrawPanelItem(panel, s);
+    // If the version is not the newest version
     if (versionindex < FF2_MAX_VERSION)
+        // Say that there is a newer version
         Format(s,90, "%t", "newer");
+    // If the version is the newest version
     else
+        // Say that there is no newer version
         Format(s,90, "%t", "nonewer");
-    DrawPanelItem(panel, s);  
+    // Format the changelist panel with newer version message
+    DrawPanelItem(panel, s);
+    // ????
     Format(s,512,"%t","menu_6");
-    DrawPanelItem(panel,s);    
+    // Draw the message on thge panel
+    DrawPanelItem(panel,s);
+    // Send the panel to the client
     SendPanelToClient(panel, client, NewPanelH, 9001);
+    // Close the panel's handle
     CloseHandle(panel);
     return Plugin_Continue;
 }
@@ -5282,26 +5312,39 @@ public ClassinfoTogglePanelH(Handle:menu, MenuAction:action, param1, param2)
     }
 }
 
+// Displays a help panel for a client if they're valid
 public Action:Command_HelpPanel2(client, args)
 {
-    if (!IsValidClient(client)) return Plugin_Continue;
+    // If the given client isn't valid, don't do anything
+    if (!IsValidClient(client))
+        return Plugin_Continue;
+        
+    // If the given client is valid, attmept to display the help panel for their state
     HelpPanel2(client);
     return Plugin_Handled;
 }
 
+// Displays a class help panel based on a given client's class
 public Action:HelpPanel2(client)
 {
+    // If the plugin is disabled, do nothing
     if (!Enabled)
         return Plugin_Continue;
-    new index=GetBossIndex(client);
-    if (index!=-1)
+    
+    // Get a number that checks if the client is the boss
+    new index = GetBossIndex(client);
+    // If the client is the boss, show them the boss help panel for their boss
+    if (index != -1)
     {
         HelpPanelBoss(index);
         return Plugin_Continue;
     }
+    // Make a new String that will become the help message for the client's class
     decl String:s[512];
+    // Get the client's class
     new TFClassType:class = TF2_GetPlayerClass(client);
     SetGlobalTransTarget(client);
+    // Format the message based on the player's class
     switch (class)
     {
         case TFClass_Scout:
@@ -5325,12 +5368,19 @@ public Action:HelpPanel2(client)
         default:
             Format(s, 512, "");
     }
+    // Make a new panel for the message
     new Handle:panel = CreatePanel();
+    // If the client isn't a Sniper (Snipers have crits on everything)
     if (class!= TFClass_Sniper)
+        // Append the message with the 'All weapons have crits' message
         Format(s,512,"%t\n%s","help_melee",s);
+    // Fill the panel with the help message
     SetPanelTitle(panel,s);
+    // Add a line to the end of the panel that allows the client to dismiss the message
     DrawPanelItem(panel,"Exit");
+    // Send the client the help panel
     SendPanelToClient(panel, client, HintPanelH, 20);
+    // Close the panel's handle
     CloseHandle(panel);
     return Plugin_Continue;
 }
@@ -5356,7 +5406,8 @@ public Action:HelpPanelBoss(index)
 
 public Action:Command_MusicTogglePanel(client, args)
 {
-    if (!IsValidClient(client)) return Plugin_Continue;
+    if (!IsValidClient(client))
+        return Plugin_Continue;
     MusicTogglePanel(client);
     return Plugin_Handled;
 }
@@ -5417,7 +5468,6 @@ public Action:VoiceTogglePanel(client)
     CloseHandle(panel);
     return Plugin_Continue;
 }
-
 
 public VoiceTogglePanelH(Handle:menu, MenuAction:action, param1, param2)
 {
@@ -5589,7 +5639,6 @@ stock IsValidClient(client, bool:replayCheck = true)
     //All checks passed, so this client is valid.
     return true;
 }
-
 
 //Handles character set voting menu events.
 //TODO: FIXME
@@ -6443,11 +6492,11 @@ public OnTakeDamagePost(victim, attacker, inflictor, Float:damage, damagetype)
         if (index == -1)
             return;
         
-        //Turn off jarate.
+        //Turn off Jarate.
         if (TF2_IsPlayerInCondition(Boss[index],TFCond_Jarated))
             TF2_RemoveCondition(Boss[index],TFCond_Jarated);
         
-        //Turn off milked.
+        //Turn off Mad Milk.
         //if (TF2_IsPlayerInCondition(Boss[index], TFCond_Milked))
         //  TF2_RemoveCondition(Boss[index],TFCond_Milked);
         
