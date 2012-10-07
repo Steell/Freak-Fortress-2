@@ -5590,11 +5590,9 @@ stock IsValidClient(client, bool:replayCheck = true)
     return true;
 }
 
-<<<<<<< HEAD
+
 //Handles character set voting menu events.
-=======
 //TODO: FIXME
->>>>>>> Removed a global String
 public NextmapPanelH(Handle:menu, MenuAction:action, param1, param2)
 {
     //This function seems like useless gibberish
