@@ -572,7 +572,7 @@ public OnMapStart()
             CreateAnnounceTimer(announceTime, Timer_Announce, _, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
         }
 
-        CheckToChangeMapDoors();
+        checkdoors = CheckToChangeMapDoors();
     }
     RoundCount = 0;
     bMedieval = FindEntityByClassname(-1, "tf_logic_medieval") != -1 
@@ -1078,6 +1078,7 @@ stock bool:CheckToChangeMapDoors()
     decl String:line[64];
     while (!IsEndOfFile(fileh) && ReadFileLine(fileh, line, sizeof(line)))
     {
+        //Skip comments
         if (strncmp(line, "//", 2, false) == 0) 
             continue;
 
@@ -1093,12 +1094,15 @@ stock bool:CheckToChangeMapDoors()
     return false;
 }
 
+//Called when the round starts
 public Action:Event_OnRoundStart(Handle:event, const String:name[], bool:dontBroadcast)
 {
-    if (!GetConVarBool(cvarEnabled)) Enabled2 = false;
+    if (!GetConVarBool(cvarEnabled)) 
+        Enabled2 = false;
     Enabled = Enabled2;
     if (!Enabled)
         return Plugin_Continue;
+    
     FF2RoundState = 0;
     if (FileExists("bNextMapToFF2"))
         DeleteFile("bNextMapToFF2");
@@ -2136,18 +2140,18 @@ public Action:MakeBoss(Handle:hTimer,any:index)
     if (chkFirstHale == 0)
     {
         if (GetConVarBool(cvarFirstRound) && RoundCount == 0)
-            cFH(Boss[index]);
+            checkFirstHaleIn3(Boss[index]);
         else if (!GetConVarBool(cvarFirstRound) && RoundCount == 1)
-            cFH(Boss[index]);
+            checkFirstHaleIn3(Boss[index]);
     }
     
     return Plugin_Continue;
 }
 
-public cFH(any:i)
+public checkFirstHaleIn3(any:i)
 {
-    if(i > 0)
-        CreateTimer(3.0,checkFirstHale,i);
+    if (i > 0)
+        CreateTimer(3.0, checkFirstHale, i);
 }
 
 public Action:checkFirstHale(Handle:timer,any:i)
