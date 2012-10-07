@@ -130,8 +130,8 @@ new Float:HPTime;
 new String:currentmap[99];
 new bool:checkdoors = false;
 new bool:bMedieval;
-new FF2CharSet;
-new String:FF2CharSetStr[42];
+new FF2NextCharSet; // The next character set to use.
+new String:FF2NextCharSetName[42]; // The name of the next character set to use.
 
 new tf_arena_use_queue;
 new mp_teams_unbalance_limit;
@@ -555,7 +555,7 @@ public OnMapStart()
         Enabled2 = true;
         EnableSubPlugins();
         AddToDownload();
-        strcopy(FF2CharSetStr, 2, "");
+        strcopy(FF2NextCharSetName, 2, "");
         isSubPluginsEnabled = false;
         tf_arena_use_queue = GetConVarInt(FindConVar("tf_arena_use_queue"));
         mp_teams_unbalance_limit = GetConVarInt(FindConVar("mp_teams_unbalance_limit"));
@@ -611,7 +611,7 @@ public AddToDownload()
     new Handle:kv = CreateKeyValues("");
     FileToKeyValues(kv, characterConfigPath);
     
-    for (new i = 0; i < FF2CharSet; i++)
+    for (new i = 0; i < FF2NextCharSet; i++)
         KvGotoNextKey(kv);
     
     KvGotoFirstSubKey(kv);
@@ -2735,7 +2735,7 @@ public Action:Command_CharSet(client, args)
         }
     }
     CloseHandle(Kv);
-    FF2CharSet=i;
+    FF2NextCharSet=i;
     return Plugin_Handled;
 }
 
@@ -4476,31 +4476,51 @@ stock GetAbilityArgumentString(index, const String:pluginName[], const String:ab
     }
 }
 
-stock bool:RandomSound(const String: keyvalue[], String: str[],length, index = 0)
+//Gets a random sound from the given character sound type.
+//Returns whether or not the sound was successfully found.
+stock bool:RandomSound(const String: keyvalue[], String: str[], length, index = 0)
 {
-    strcopy(str,1,"");
-    if (index<0 || Special[index]<0 || !CharacterConfigs[Special[index]])
+    //Put the empty string into the given buffer.
+    strcopy(str, 1, "");
+    
+    //If the index is invalid or the character config file for the given boss doesn't exist, exit out.
+    if (index < 0 || Special[index] < 0 || !CharacterConfigs[Special[index]])
         return false;
-    KvRewind(CharacterConfigs[Special[index]]);
-    if (!KvJumpToKey(CharacterConfigs[Special[index]],keyvalue))
+    
+    new specialIndex = Special[index];
+    
+    //Reset the config data reader for the given client.
+    KvRewind(CharacterConfigs[specialIndex]);
+    
+    //If the given key doesn't exist, exit.
+    if (!KvJumpToKey(CharacterConfigs[specialIndex], keyvalue))
     {
-        KvRewind(CharacterConfigs[Special[index]]);
+        KvRewind(CharacterConfigs[specialIndex]);
         return false;
     }
+    
+    //We are now at the correct sound key, so get a random sound from it.
     decl String:s[4];
+    //Go through every sound in the list for this key by index.
     new i = 1;
-    for(;;)
+    for (; ; ++i)
     {
-        IntToString(i,s,4);
-        KvGetString(CharacterConfigs[Special[index]], s, str, length);
-        if (!str[0])
-            break;
-        i++;
+        //Turn "i" into a string.
+        IntToString(i, s, 4);
+        
+        //Get the sound file for the given index and store it in "str".
+        KvGetString(CharacterConfigs[specialIndex], s, str, length);
+        
+        //If the sound data is nonexistent, we've found all of them.
+        if (str[0] == 0)
+            //If this was the first key, there are no random sounds to pick from.
+            if (i == 1) return false;
+            else break;
     }
-    if (i == 1)
-        return false;
-    IntToString(GetRandomInt(1,i-1),s,4);
-    KvGetString(CharacterConfigs[Special[index]], s, str, length);
+    
+    //Get a random sound index to play.
+    IntToString(GetRandomInt(1, i - 1), s, 4);
+    KvGetString(CharacterConfigs[specialIndex], s, str, length);
     return true;
 }
 
@@ -5370,21 +5390,33 @@ public VoiceTogglePanelH(Handle:menu, MenuAction:action, param1, param2)
     }
 }
 
+//Reacts to a sound being played.
 public Action:HookSound(clients[64], &numClients, String:sample[PLATFORM_MAX_PATH], &ent, &channel, &Float:volume, &level, &pitch, &flags)
 {
-    if (!Enabled || ent<1 || ent>MaxClients || channel<1)
+    //If the plugin isn't enabled or the entity isn't a player or it's not the correct channel, just exit this function.
+    if (!Enabled || ent < 1 || ent > MaxClients || channel < 1)
         return Plugin_Continue;
+        
+    //Get the boss index for the given client.
     new index = GetBossIndex(ent);
+    
+    //If the client isn't a boss, exit this function.
     if (index == -1)
         return Plugin_Continue;
-    if (!StrContains(sample,"vo") && !(FF2flags[Boss[index]] & FF2FLAG_TALKING))
+        
+    //???? Not sure about this.
+    //If the sound path string doesn't contain "vo" and isn't voice chat, play a random sound.
+    if (!StrContains(sample, "vo") && !(FF2flags[Boss[index]] & FF2FLAG_TALKING))
     {
+        //If the given special's voice is disabled, exit.
         if (IsVoiceDisabled[Special[index]])
             return Plugin_Handled;
+            
+        //Create a buffer.
         decl String:sample2[PLATFORM_MAX_PATH];
-        if (RandomSound("catch_phrase",sample2,PLATFORM_MAX_PATH,index))
+        if (RandomSound("catch_phrase", sample2, PLATFORM_MAX_PATH, index))
         {
-            strcopy(sample,PLATFORM_MAX_PATH,sample2);
+            strcopy(sample, PLATFORM_MAX_PATH, sample2);
             return Plugin_Changed;
         }
     }
@@ -5460,11 +5492,11 @@ stock GetHealingTarget(client, bool:checkNonMedigun = false)
     decl String:s[64];
     GetEdictClassname(gun, s, sizeof(s));
     
+    //If the gun is a medigun and has healing, return its target.
     if (strcmp(s, "tf_weapon_medigun", false) == 0 &&
         GetEntProp(gun, Prop_Send, "m_bHealing"))
         return GetEntPropEnt(gun, Prop_Send, "m_hHealingTarget");
-    else
-        return -1;
+    else return -1;
 }
 
 //Finds if the given client is a valid client.
@@ -5479,7 +5511,7 @@ stock IsValidClient(client, bool:replayCheck = true)
     //If the client is coaching ????, it isn't valid.
     if (GetEntProp(client, Prop_Send, "m_bIsCoaching")) return false;
     
-    //Check for replay or sourceTV entities?
+    //Check for replay or sourceTV entities.
     if (replayCheck)
     {
         //Some strings holding names.
@@ -5509,12 +5541,16 @@ stock IsValidClient(client, bool:replayCheck = true)
     return true;
 }
 
-//???? I think param1 is a client id, and param2 is possibly a boolean?
+//Handles character set voting menu events.
 public NextmapPanelH(Handle:menu, MenuAction:action, param1, param2)
-{   
+{
+    //This function seems like useless gibberish
+    //  and I think it could be replaced with a function that just checks if it's time to end the menu and close handles.
+    
     //If something was selected and ? is equal to one, 
     if (action == MenuAction_Select && param2 == 1)
     {
+        //Create an array of the clients who selected (i.e. just this client).
         new clients[1];
         clients[0] = param1;
         if (!IsVoteInProgress())
@@ -5523,31 +5559,44 @@ public NextmapPanelH(Handle:menu, MenuAction:action, param1, param2)
     return;
 }
 
+//Handle the character set voting menu results.
 public NextmapPanelH2(Handle:menu, num_votes, num_clients, const client_info[][2], num_items, const item_info[][2])
 {
+    //Some data.
+    //"mode" is the menu item selection.
+    //"nextmap" is the "next map" convar.
     decl String:mode[42], String:nextmap[42];
     
+    //Put the menu item into the "mode" buffer.
     GetMenuItem(menu, item_info[0][VOTEINFO_ITEM_INDEX], mode, 42);
     
+    //If "random" set is selected, get a random number for the next set.
     if (mode[0] == '0')
-        FF2CharSet = GetRandomInt(0,FF2CharSet);
-    else
-        FF2CharSet=mode[0]-'0'-1;
+        // Set FF2NextCharSet to a random set.
+        //A previous function already set "FF2NextCharSet" to the total number of sets.
+        FF2NextCharSet = GetRandomInt(0, FF2NextCharSet);
+    //Take the character representing the next set and subtract the character '0' from it.
+    //   This effectively converts it from a char into an actual index number.
+    //   Subtract 1 to make it 0-based.
+    else FF2NextCharSet = mode[0] - '0' - 1;
         
-    GetConVarString(cvarNextmap,nextmap, 42);
-    strcopy(FF2CharSetStr, 42, mode[StrContains(mode, " ") + 1]);
+    //Get the next map.
+    GetConVarString(cvarNextmap, nextmap, 42);
     
-    CPrintToChatAll("%t","nextmap_charset",nextmap,FF2CharSetStr);
+    //Copy the next character set name into the global variable for it.
+    strcopy(FF2NextCharSetName, 42, mode[StrContains(mode, " ") + 1]);
+    
+    //Print the results to everybody.
+    CPrintToChatAll("%t", "nextmap_charset", nextmap, FF2NextCharSetName);
 }
 
-//???? So every time the next map changes, a vote is called to change it again?
-//When the next map changes, call a vote to choose the next map.
+//When the next map changes, call a vote to choose the next character set.
 public OnNextmapChanged(Handle:convar, const String:oldValue[], const String:newValue[])
 {   
     CreateTimer(0.1, Timer_OnNextmapChanged);
 }
 
-//Create the menu for voting on maps.
+//Create the menu for voting on character sets.
 public Action:Timer_OnNextmapChanged(Handle:hTimer)
 {
     //If people are still voting, don't re-initialize the vote.
@@ -5564,34 +5613,35 @@ public Action:Timer_OnNextmapChanged(Handle:hTimer)
     BuildPath(Path_SM, s, PLATFORM_MAX_PATH, "configs/freak_fortress_2/characters.cfg");
     new Handle:Kv = CreateKeyValues("");
     FileToKeyValues(Kv, s);
-    //Add the "Random" map choice option.
+    //Add the "Random" set choice option.
     AddMenuItem(dVoteMenu, "0 Random", "Random");
     
-    //Go through every map in the config file.
-    //i counts the number of maps listed.
-    //j counts the number of non-hidden maps listed.
-    new i = 0, j = 0;
+    //Go through every character set in the config file.
+    new characterSets = 0, visibleCharSets = 0;
     do
     {
-        i++;
-        //If the map should be hidden, stop.
+        characterSets++;
+        //If the set should be hidden, stop.
         if (KvGetNum(Kv, "hidden", 0))
             continue;
 
-        j++;
+        visibleCharSets++;
         
-        //Add this map as a menu option.
-        KvGetSectionName(Kv, s, 64);
-        Format(s2, 64, "%i %s", i, s);
+        //Add this set as a menu option.
+        KvGetSectionName(Kv, s, sizeof(s));
+        Format(s2, sizeof(s2), "%i %s", characterSets, s);
         AddMenuItem(dVoteMenu, s2, s);
     }
     while (KvGotoNextKey(Kv));
     CloseHandle(Kv);
     
-    //If at least one map wasn't hidden, publish the vote menu so players can vote on it.
-    if (j > 1)
+    //If at least one set wasn't hidden, publish the vote menu so players can vote on it.
+    if (visibleCharSets > 1)
     {
-        FF2CharSet = i;
+        //Set the next character set to the total number of character sets.
+        //When the voting is over, this value will be changed to the winning menu choice.
+        FF2NextCharSet = characterSets;
+        
         //Get the vote duration. If it wasn't set, use a default value.
         new Handle:see = FindConVar("sm_mapvote_voteduration");
         if (see)
@@ -5603,39 +5653,36 @@ public Action:Timer_OnNextmapChanged(Handle:hTimer)
     return Plugin_Continue;
 }
 
-//Print the next map for the server to chat.
+//Print the next map for the server to the given client's chat.
 public Action:NextMapCmd(client, args)
 {
-    //If the FF2CharSet is an empty string, stop.
-    if (!FF2CharSetStr[0])
+    //If there are no character sets available, stop.
+    if (!FF2NextCharSetName[0])
         return Plugin_Continue;
         
     //Get the next map.
     decl String:nextmap[42];
     GetConVarString(cvarNextmap, nextmap, 42);
     
-    //Print it.
-    CPrintToChat(client, "%t", "nextmap_charset", nextmap, FF2CharSetStr);
+    //Print the next map and character set.
+    CPrintToChat(client, "%t", "nextmap_charset", nextmap, FF2NextCharSetName);
     return Plugin_Handled;
 }
 
-//????
-//Reacts to some kind of command?
+//Reacts to the "nextmap" command.
 public Action:SayCmd(client, args)
 {
     decl String:CurrentChat[128];
     
-    //???? Comparing a string to a number? How does that work?
-    //If the command arguments as a string is less than 1 (?) or the client is the world entity,
-    //   stop.
-    if (GetCmdArgString(CurrentChat, sizeof(CurrentChat)) < 1 ||
-        client == 0)
+    //If the client was the world entity or there weren't any chat commands, stop.
+    if (client == 0 || GetCmdArgString(CurrentChat, sizeof(CurrentChat)) < 1)
         return Plugin_Continue;
         
-    //If the command was the NextMap command and the FF2CharSet isn't "", call that function.
-    if (strcmp(CurrentChat, "\"nextmap\"") == 0 && FF2CharSetStr[0])
+    //If the command was the "Next Map" command and there are some available character sets to choose from,
+    //   Call the next map function.
+    if (strcmp(CurrentChat, "\"nextmap\"") == 0 && FF2NextCharSetName[0] != 0)
     {
-        NextMapCmd(client,0);
+        NextMapCmd(client, 0);
         return Plugin_Handled;
     }
     
@@ -6156,19 +6203,21 @@ public Native_StopMusic(Handle:plugin, numParams)
 //Plays a random sound for the given boss using the given ability.
 public Native_RandomSound(Handle:plugin, numParams)
 {
+    //Get the native data.
     new length = GetNativeCell(3)+1;
     new index = GetNativeCell(4);
     new slot = GetNativeCell(5);
     new String:str[length];
     
+    //Get the  buffer.
     new alength;
     GetNativeStringLength(1, alength);
     alength++;
     decl String:keyvalue[alength];
     
-    GetNativeString(1,keyvalue,alength);
-    decl bool:see;
-    if (!strcmp(keyvalue,"sound_ability"))
+    GetNativeString(1, keyvalue, alength);
+    new bool:see;
+    if (!strcmp(keyvalue, "sound_ability"))
         see = RandomSoundAbility(keyvalue, str,length,index,slot);
     else
         see = RandomSound(keyvalue, str,length,index);
