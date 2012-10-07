@@ -5025,23 +5025,23 @@ public Action:Command_FF2Panel(client, args)
     new Handle:panel = CreatePanel();
     decl String:s[256];
     SetGlobalTransTarget(client);
-    Format(s,256,"%t","menu_1");
+    Format(s, 256, "%t", "menu_1");
     SetPanelTitle(panel, s);
-    Format(s,256,"%t","menu_3");
+    Format(s, 256, "%t", "menu_3");
     DrawPanelItem(panel, s);
-    Format(s,256,"%t","menu_7");
+    Format(s, 256, "%t", "menu_7");
     DrawPanelItem(panel, s);
-    Format(s,256,"%t","menu_4");
+    Format(s, 256, "%t", "menu_4");
     DrawPanelItem(panel, s);
-    Format(s,256,"%t","menu_5");
+    Format(s, 256, "%t", "menu_5");
     DrawPanelItem(panel, s);
-    Format(s,256,"%t","menu_8");
+    Format(s, 256, "%t", "menu_8");
     DrawPanelItem(panel, s);
-    Format(s,256,"%t","menu_9");
+    Format(s, 256, "%t", "menu_9");
     DrawPanelItem(panel, s);
-    Format(s,256,"%t","menu_9a");
+    Format(s, 256, "%t", "menu_9a");
     DrawPanelItem(panel, s);
-    Format(s,256,"%t","menu_6");
+    Format(s, 256, "%t", "menu_6");
     DrawPanelItem(panel, s);
     SendPanelToClient(panel, client, Command_FF2PanelH, 9001);
     CloseHandle(panel);
@@ -5339,117 +5339,152 @@ public Action:HelpPanel2(client)
         HelpPanelBoss(index);
         return Plugin_Continue;
     }
-    // Make a new String that will become the help message for the client's class
+    //Get the player's class and put the correct attribute name into "s" based on it.
     decl String:s[512];
-    // Get the client's class
     new TFClassType:class = TF2_GetPlayerClass(client);
     SetGlobalTransTarget(client);
-    // Format the message based on the player's class
     switch (class)
     {
         case TFClass_Scout:
-            Format(s,512,"%t","help_scout");
+            Format(s, 512, "%t", "help_scout");
         case TFClass_Soldier:
-            Format(s,512,"%t","help_soldier");
+            Format(s, 512, "%t", "help_soldier");
         case TFClass_Pyro:
-            Format(s,512,"%t","help_pyro");
+            Format(s, 512, "%t", "help_pyro");
         case TFClass_DemoMan:
-            Format(s,512,"%t","help_demo");
+            Format(s, 512, "%t", "help_demo");
         case TFClass_Heavy:
-            Format(s,512,"%t","help_heavy");
+            Format(s, 512, "%t", "help_heavy");
         case TFClass_Engineer:
-            Format(s,512,"%t","help_eggineer");
+            Format(s, 512, "%t", "help_engineer");
         case TFClass_Medic:
-            Format(s,512,"%t","help_medic");
+            Format(s, 512, "%t", "help_medic");
         case TFClass_Sniper:
-            Format(s,512,"%t","help_sniper");
+            Format(s, 512, "%t", "help_sniper");
         case TFClass_Spy:
-            Format(s,512,"%t","help_spie");
+            Format(s, 512, "%t", "help_spy");
         default:
             Format(s, 512, "");
     }
-    // Make a new panel for the message
+   
+    //Create the panel and its data.
     new Handle:panel = CreatePanel();
-    // If the client isn't a Sniper (Snipers have crits on everything)
-    if (class!= TFClass_Sniper)
-        // Append the message with the 'All weapons have crits' message
-        Format(s,512,"%t\n%s","help_melee",s);
-    // Fill the panel with the help message
-    SetPanelTitle(panel,s);
-    // Add a line to the end of the panel that allows the client to dismiss the message
-    DrawPanelItem(panel,"Exit");
-    // Send the client the help panel
+    //Snipers have crits on everything, which is in the "help_melee" text.
+    if (class != TFClass_Sniper)
+        Format(s, 512, "%t\n%s", "help_melee", s);
+    SetPanelTitle(panel, s);
+    DrawPanelItem(panel, "Exit");
+    
+    //Give the client the panel.
     SendPanelToClient(panel, client, HintPanelH, 20);
-    // Close the panel's handle
+    
+    //Close the handle.
     CloseHandle(panel);
+    
     return Plugin_Continue;
 }
 
+//Creates the help panel for the given boss.
 public Action:HelpPanelBoss(index)
 {
+    //Create some strings.
     decl String:s[512];
     decl String:lang[20];
-    GetLanguageInfo(GetClientLanguage(Boss[index]),lang,8,s,8);
-    Format(lang,20,"description_%s",lang);  
+    
+    //Get translation info.
+    GetLanguageInfo(GetClientLanguage(Boss[index]), lang, 8, s, 8);
+    Format(lang, 20, "description_%s", lang);
+    
+    //Find the character description in the config data.
     KvRewind(CharacterConfigs[Special[index]]);
     KvGetString(CharacterConfigs[Special[index]], lang, s, 512);
+    //If it doesn't exist, exit.
     if (!s[0])
         return Plugin_Continue;
+        
+    //Fix line breaks.
     ReplaceString(s,512,"\\n","\n");
+    
+    //Create the panel.
     new Handle:panel = CreatePanel();
     SetPanelTitle(panel,s);
     DrawPanelItem(panel,"Exit");
+    
+    //Send the panel to the client.
     SendPanelToClient(panel, Boss[index], HintPanelH, 20);
+    
+    //Garbage-collect the handle.
     CloseHandle(panel);
+    
     return Plugin_Continue;
 }
 
+//Reacts to the command to create the "toggle boss music" panel.
 public Action:Command_MusicTogglePanel(client, args)
 {
-    if (!IsValidClient(client))
-        return Plugin_Continue;
+    if (!IsValidClient(client)) return Plugin_Continue;
     MusicTogglePanel(client);
     return Plugin_Handled;
 }
 
+//Sends the given client a panel for toggling the boss music.
 public Action:MusicTogglePanel(client)
 {
+    //If client is invalid, exit.
     if (!Enabled || !IsValidClient(client)) 
         return Plugin_Continue;
+        
+    //Set the panel.
     new Handle:panel = CreatePanel();
     SetPanelTitle(panel, "Turn the Freak Fortress 2 music...");
     DrawPanelItem(panel, "On");
     DrawPanelItem(panel, "Off");
+    
+    //Give the panel to the client.
     SendPanelToClient(panel, client, MusicTogglePanelH,9001);
+    
+    //Close the handle.
     CloseHandle(panel);
+    
     return Plugin_Continue;
 }
 
+//A callback for toggling the boss music.
 public MusicTogglePanelH(Handle:menu, MenuAction:action, param1, param2)
 {
+    //If the given client is invalid, don't bother.
     if (IsValidClient(param1))
     {
+        //If an option was selected.
         if (action == MenuAction_Select)
         {
+            //Stop sound.
             if (param2 == 2)
             {
+                //Disable the music.
                 SetClientSoundOptions(param1, SOUNDEXCEPT_MUSIC, false);
                 KvRewind(CharacterConfigs[Special[0]]);
-                if (KvJumpToKey(CharacterConfigs[Special[0]],"sound_bgm"))
+                
+                //Stop any currently-playing music.
+                if (KvJumpToKey(CharacterConfigs[Special[0]], "sound_bgm"))
                 {   
                     decl String:s[PLATFORM_MAX_PATH];
-                    Format(s,10,"path%i",MusicIndex);
-                    KvGetString(CharacterConfigs[Special[0]], s,s, PLATFORM_MAX_PATH);
+                    Format(s, 10, "path%i", MusicIndex);
+                    KvGetString(CharacterConfigs[Special[0]], s, s, PLATFORM_MAX_PATH);
                     StopSound(param1, SNDCHAN_AUTO, s);
                     StopSound(param1, SNDCHAN_AUTO, s);
                 }
             }
+            //Play music.
             else
                 SetClientSoundOptions(param1, SOUNDEXCEPT_MUSIC, true);
-            CPrintToChat(param1,"{olive}[FF2]{default} %t","ff2_music", param2 == 2 ? "off" : "on");
+                
+            //Print to chat the new settings.
+            CPrintToChat(param1, "{olive}[FF2]{default} %t", "ff2_music", param2 == 2 ? "off" : "on");
         }
     }
 }
+//Reacts to the command to bring up the "toggle boss voice" panel.
 public Action:Command_VoiceTogglePanel(client, args)
 {
     if (!IsValidClient(client)) return Plugin_Continue;
@@ -5477,13 +5512,13 @@ public VoiceTogglePanelH(Handle:menu, MenuAction:action, param1, param2)
         //If something wasn't selected, don't do anything.
         if (action == MenuAction_Select)
         {
-            //If option 2 was selected, turn off the "no sound except voice" option.
-            if (param2 == 2)
-                SetClientSoundOptions(param1, SOUNDEXCEPT_VOICE, false);
-            else
-                SetClientSoundOptions(param1, SOUNDEXCEPT_VOICE, true);
-            CPrintToChat(param1,"{olive}[FF2]{default} %t","ff2_voice", param2 == 2 ? "off" : "on");
-            if (param2 == 2) CPrintToChat(param1, "%t","ff2_voice2");
+            //Set sound options for the client based on the given arguments.
+            if (param2 == 2) SetClientSoundOptions(param1, SOUNDEXCEPT_VOICE, false);
+            else SetClientSoundOptions(param1, SOUNDEXCEPT_VOICE, true);
+            
+            //Print the new values to the client.
+            CPrintToChat(param1, "{olive}[FF2]{default} %t", "ff2_voice", param2 == 2 ? "off" : "on");
+            if (param2 == 2) CPrintToChat(param1, "%t", "ff2_voice2");
         }
     }
 }
