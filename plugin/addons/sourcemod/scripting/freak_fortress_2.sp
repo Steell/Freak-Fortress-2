@@ -1852,30 +1852,37 @@ stock bool:CheckSoundException(client, excepttype)
     return StringToInt(ff2cookies_values[1])==1;
 }
 
+//Sets sound options for the given client.
 SetClientSoundOptions(client, excepttype, bool:on)
 {
+    //If the given client is fake or not valid, exit.
     if (!IsValidClient(client)) return;
     if (IsFakeClient(client)) return;
+    //If the client's cookies aren't cached, return.
     if (!AreClientCookiesCached(client)) return;
+    
+    //Declare some data.
     decl String:s[24];
     decl String:ff2cookies_values[8][5];
-    GetClientCookie(client, FF2Cookies, s,24);
-    ExplodeString(s, " ", ff2cookies_values,8,5);
+    
+    //Get client cookie.
+    GetClientCookie(client, FF2Cookies, s, 24);
+    //Split it into its values.
+    ExplodeString(s, " ", ff2cookies_values, 8, 5);
+    
+    //Set the cookie data based on the values given to this function.
     if (excepttype == SOUNDEXCEPT_VOICE)
-    {
-        if (on)
-            ff2cookies_values[2][0] = '1';
-        else
-            ff2cookies_values[2][0] = '0';
-    }
-    else
-    {
-        if (on)
-            ff2cookies_values[1][0] = '1';
-        else
-            ff2cookies_values[1][0] = '0';
-    }
-    Format(s,24,"%s %s %s %s %s %s %s %s",ff2cookies_values[0],ff2cookies_values[1],ff2cookies_values[2],ff2cookies_values[3],ff2cookies_values[4],ff2cookies_values[5],ff2cookies_values[6],ff2cookies_values[7]);
+        if (on) ff2cookies_values[2][0] = '1';
+        else ff2cookies_values[2][0] = '0';
+        
+    else if (on) ff2cookies_values[1][0] = '1';
+    
+    else ff2cookies_values[1][0] = '0';
+    
+    //Put the data into a string and set the client's cookie.
+    Format(s,24,"%s %s %s %s %s %s %s %s",
+           ff2cookies_values[0], ff2cookies_values[1], ff2cookies_values[2], ff2cookies_values[3],
+           ff2cookies_values[4], ff2cookies_values[5], ff2cookies_values[6], ff2cookies_values[7]);
     SetClientCookie(client, FF2Cookies, s);
 }
 
@@ -5374,12 +5381,16 @@ public Action:VoiceTogglePanel(client)
     return Plugin_Continue;
 }
 
+
 public VoiceTogglePanelH(Handle:menu, MenuAction:action, param1, param2)
 {
+    //Make sure the given client index points to a valid player.
     if (IsValidClient(param1))
     {
+        //If something wasn't selected, don't do anything.
         if (action == MenuAction_Select)
         {
+            //If option 2 was selected, turn off the "no sound except voice" option.
             if (param2 == 2)
                 SetClientSoundOptions(param1, SOUNDEXCEPT_VOICE, false);
             else
@@ -5412,10 +5423,11 @@ public Action:HookSound(clients[64], &numClients, String:sample[PLATFORM_MAX_PAT
         if (IsVoiceDisabled[Special[index]])
             return Plugin_Handled;
             
-        //Create a buffer.
+        //Get a random catchphrase sound and store it in a buffer.
         decl String:sample2[PLATFORM_MAX_PATH];
         if (RandomSound("catch_phrase", sample2, PLATFORM_MAX_PATH, index))
         {
+            //If a catch-phrase exists, put it into the original given buffer.
             strcopy(sample, PLATFORM_MAX_PATH, sample2);
             return Plugin_Changed;
         }
