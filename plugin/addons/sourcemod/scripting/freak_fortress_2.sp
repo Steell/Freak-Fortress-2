@@ -127,7 +127,6 @@ new Handle:DrawGameTimer;
 new RoundCounter;
 new botqueuepoints = 0;
 new Float:HPTime;
-new String:currentmap[99];
 new bool:checkdoors = false;
 new bool:bMedieval;
 new FF2NextCharSet; // The next character set to use.
@@ -378,18 +377,18 @@ public OnPluginStart()
 
     HookUserMessage(GetUserMessageId("PlayerJarated"), Event_OnPlayerJarated);
     
-    HookConVarChange(cvarEnabled,       OnConVarChanged);
-    HookConVarChange(cvar_PointEnableDelayPerPlayer,    OnConVarChanged);
-    HookConVarChange(cvarAnnounce,      OnConVarChanged);
-    HookConVarChange(cvar_PointEnableCondition,     OnConVarChanged);
-    HookConVarChange(cvar_PointEnableDelayPerPlayer,    OnConVarChanged);
+    HookConVarChange(cvarEnabled, OnConVarChanged);
+    HookConVarChange(cvar_PointEnableDelayPerPlayer, OnConVarChanged);
+    HookConVarChange(cvarAnnounce, OnConVarChanged);
+    HookConVarChange(cvar_PointEnableCondition, OnConVarChanged);
+    HookConVarChange(cvar_PointEnableDelayPerPlayer, OnConVarChanged);
     HookConVarChange(cvarAliveToEnable, OnConVarChanged);
-    HookConVarChange(cvarCrits,         OnConVarChanged);
-    HookConVarChange(cvarCircuitStun,   OnConVarChanged);
-    HookConVarChange(cvarUseCountdown,  OnConVarChanged);
+    HookConVarChange(cvarCrits, OnConVarChanged);
+    HookConVarChange(cvarCircuitStun, OnConVarChanged);
+    HookConVarChange(cvarUseCountdown, OnConVarChanged);
     HookConVarChange(cvarSpecForceBoss, OnConVarChanged);
     cvarNextmap = FindConVar("sm_nextmap");
-    HookConVarChange(cvarNextmap,       OnNextmapChanged);
+    HookConVarChange(cvarNextmap, OnNextmapChanged);
 
     RegConsoleCmd("ff2",                Command_FF2Panel);
     RegConsoleCmd("ff2_hp",             Command_GetHPCmd);
@@ -724,7 +723,7 @@ DisableSubPlugins(bool:force=false)
     CloseHandle(spDir);
 }
 
-//
+//Loads a character
 public LoadCharacter(const String:character[])
 {           
     static String:extensions[][] = {".mdl", ".dx80.vtx", ".dx90.vtx", ".sw.vtx", ".vvd"};
@@ -886,13 +885,13 @@ public LoadCharacter(const String:character[])
 }
 
 
-//
+//Callback for when various convars have been modified
 public OnConVarChanged(Handle:convar, const String:oldValue[], const String:newValue[])
 {
     if (convar == cvar_PointEnableDelayPerPlayer)
     {
         PointDelay = StringToInt(newValue);
-        if (PointDelay < 0) PointDelay*= -1;
+        if (PointDelay < 0) PointDelay *= -1;
     }
     else if (convar == cvarAnnounce)
         Announce = StringToFloat(newValue);
@@ -920,6 +919,7 @@ public OnConVarChanged(Handle:convar, const String:oldValue[], const String:newV
 }
 
 
+//Controls the anoouncement timer. (Timer callback)
 public Action:Timer_Announce(Handle:hTimer)
 {
     static announcecount = -1;
@@ -943,7 +943,7 @@ public Action:Timer_Announce(Handle:hTimer)
             case 5:
             {
                 announcecount = 0;
-                CPrintToChatAll("{olive}[FF2]{default} %t","ff2_last_update",FF2_VERSION_TITLES[FF2_MAX_VERSION],FF2_VERSION_DATES[FF2_MAX_VERSION]);
+                CPrintToChatAll("{olive}[FF2]{default} %t", "ff2_last_update", FF2_VERSION_TITLES[FF2_MAX_VERSION],FF2_VERSION_DATES[FF2_MAX_VERSION]);
             }
             default: 
             {
@@ -955,7 +955,7 @@ public Action:Timer_Announce(Handle:hTimer)
 }
 
 
-
+//Sets the server's game description text (SDKHooks callback)
 public Action:OnGetGameDescription(String:gameDesc[64])
 {
     if (Enabled)
@@ -966,33 +966,123 @@ public Action:OnGetGameDescription(String:gameDesc[64])
     return Plugin_Continue;
 }
 
+
+//Is this map a FF2 map?
 stock bool:IsFF2Map()
 {
-    decl String:s[PLATFORM_MAX_PATH];
-    GetCurrentMap(currentmap, sizeof(currentmap));
     if (FileExists("bNextMapToFF2"))
         return true;
-    BuildPath(Path_SM, s, PLATFORM_MAX_PATH, "configs/freak_fortress_2/maps.cfg");
-    if (!FileExists(s))
+
+    //Fetch the map name
+    decl String:currentMap[PLATFORM_MAX_PATH];
+    GetCurrentMap(currentMap, sizeof(currentMap));
+
+    //Get the map config file path
+    decl String:mapConfigPath[PLATFORM_MAX_PATH];
+    BuildPath(Path_SM, mapConfigPath, PLATFORM_MAX_PATH, "configs/freak_fortress_2/maps.cfg");
+    if (!FileExists(mapConfigPath))
     {
-        LogError("[FF2] Unable to find %s, disabling plugin.", s);
+        LogError("[FF2] Unable to find %s, disabling plugin.", mapConfigPath);
         return false;
     }
-    new Handle:fileh = OpenFile(s, "r");
+
+    //Open it
+    new Handle:fileh = OpenFile(mapConfigPath, "r");
     if (fileh == INVALID_HANDLE)
     {
-        LogError("[FF2] Error reading maps from %s, disabling plugin.", s);
+        LogError("[FF2] Error reading maps from %s, disabling plugin.", mapConfigPath);
         return false;
     }
-    new pingas = 0;
-    while (ReadFileLine(fileh, s, sizeof(s)) && (pingas < 100))
+
+    //Read each line in the file
+    decl String:line[PLATFORM_MAX_PATH];
+    while (ReadFileLine(fileh, line, sizeof(line)))
     {
-        pingas++;
-        if (pingas == 100)
-            LogError("[FF2] Breaking infinite loop when trying to check the map.");
-        Format(s, strlen(s)-1, s);
-        if (strncmp(s, "//", 2, false) == 0) continue;
-        if ((StrContains(currentmap, s, false) == 0) || (StrContains(s, "all", false) == 0))
+        //Skip lines that are commented out
+        if (strncmp(line, "//", 2, false) == 0) 
+            continue;
+
+        //Trim trailing whitespace
+        TrimString(line);
+        
+        //Return true if the current map starts with the line text or if the line text is "all"
+        if (StrContains(currentMap, line, false) == 0 || StrEqual(line, "all", false))
+        {
+            CloseHandle(fileh);
+            return true;
+        }
+    }
+
+    //Done parsing the file with no matches, return false.
+    CloseHandle(fileh);
+    return false;
+}
+
+
+//Does this map have music?
+//  forceRecalc : don't use the cached result
+stock bool:MapHasMusic(bool:forceRecalc=false)
+{
+    static bool:hasMusic, bool:searched;
+
+    //Reset flags if we're forcing this
+    if (forceRecalc)
+    {
+        searched = false;
+        hasMusic = false;
+    }
+
+    //If we haven't looked for a sound
+    if (!searched)
+    {
+        //Search entities
+        new i = -1;
+        decl String:name[64];
+        while ((i = FindEntityByClassname2(i, "info_target")) != -1)
+        {
+            GetEntPropString(i, Prop_Data, "m_iName", name, sizeof(name));
+            if (StrEqual(name, "hale_no_music", false)) 
+            {
+                hasMusic = true;
+                break;
+            }
+        }
+        searched = true;
+    }
+    return hasMusic;
+}
+
+
+//Do we need to modify doors on this map?
+stock bool:CheckToChangeMapDoors()
+{
+    decl String:currentMap[PLATFORM_MAX_PATH];
+    GetCurrentMap(currentMap, sizeof(currentmap));
+
+    //Hard-coded check
+    if (StrEqual(currentmap, "vsh_lolcano_pb1", false))
+        return true;
+
+    //Get door config file path
+    decl String:doorConfigPath[PLATFORM_MAX_PATH];
+    BuildPath(Path_SM, doorConfigPath, sizeof(doorConfigPath), "configs/freak_fortress_2/doors.cfg");
+    if (!FileExists(doorConfigPath))
+        return false;
+
+    //Open it
+    new Handle:fileh = OpenFile(s, "r");
+    if (fileh == INVALID_HANDLE)
+        return false;
+
+    //Loop those lines
+    while (!IsEndOfFile(fileh) && ReadFileLine(fileh, s, sizeof(s)))
+    {
+        if (strncmp(s, "//", 2, false) == 0) 
+            continue;
+
+        TrimString(s);
+
+        if (StrContains(currentmap, s, false) != -1 || StrContains(s, "all", false) == 0)
         {
             CloseHandle(fileh);
             return true;
@@ -1000,60 +1090,6 @@ stock bool:IsFF2Map()
     }
     CloseHandle(fileh);
     return false;
-}
-
-stock bool:MapHasMusic(bool:forceRecalc = false)    //SAAAAAARGE
-{
-    static bool:hasMusic;
-    static bool:found = false;
-    if (forceRecalc)
-    {
-        found = false;
-        hasMusic = false;
-    }
-    if (!found)
-    {
-        new i = -1;
-        decl String:name[64];
-        while ((i = FindEntityByClassname2(i, "info_target")) != -1)
-        {
-            GetEntPropString(i, Prop_Data, "m_iName", name, sizeof(name));
-            if (strcmp(name, "hale_no_music", false) == 0) hasMusic = true;
-        }
-        found = true;
-    }
-    return hasMusic;
-}
-stock bool:CheckToChangeMapDoors()
-{
-    decl String:s[PLATFORM_MAX_PATH];
-    checkdoors = false;
-    BuildPath(Path_SM, s, PLATFORM_MAX_PATH, "configs/freak_fortress_2/doors.cfg");
-    if (!FileExists(s))
-    {
-        if (strncmp(currentmap, "vsh_lolcano_pb1", 15, false) == 0)
-            checkdoors = true;
-        return;
-    }
-    new Handle:fileh = OpenFile(s, "r");
-    if (fileh == INVALID_HANDLE)
-    {
-        if (strncmp(currentmap, "vsh_lolcano_pb1", 15, false) == 0)
-            checkdoors = true;
-        return;
-    }
-    while (!IsEndOfFile(fileh) && ReadFileLine(fileh, s, sizeof(s)))
-    {
-        Format(s, strlen(s)-1, s);
-        if (strncmp(s, "//", 2, false) == 0) continue;
-        if (StrContains(currentmap, s, false) != -1 || StrContains(s, "all", false) == 0)
-        {
-            CloseHandle(fileh);
-            checkdoors = true;
-            return;
-        }
-    }
-    CloseHandle(fileh);
 }
 
 public Action:Event_OnRoundStart(Handle:event, const String:name[], bool:dontBroadcast)
@@ -5553,7 +5589,11 @@ stock IsValidClient(client, bool:replayCheck = true)
     return true;
 }
 
+<<<<<<< HEAD
 //Handles character set voting menu events.
+=======
+//TODO: FIXME
+>>>>>>> Removed a global String
 public NextmapPanelH(Handle:menu, MenuAction:action, param1, param2)
 {
     //This function seems like useless gibberish
