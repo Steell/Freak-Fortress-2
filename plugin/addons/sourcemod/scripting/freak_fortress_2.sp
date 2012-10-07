@@ -1075,14 +1075,15 @@ stock bool:CheckToChangeMapDoors()
         return false;
 
     //Loop those lines
-    while (!IsEndOfFile(fileh) && ReadFileLine(fileh, s, sizeof(s)))
+    decl String:line[64];
+    while (!IsEndOfFile(fileh) && ReadFileLine(fileh, line, sizeof(line)))
     {
-        if (strncmp(s, "//", 2, false) == 0) 
+        if (strncmp(line, "//", 2, false) == 0) 
             continue;
 
-        TrimString(s);
+        TrimString(line);
 
-        if (StrContains(currentmap, s, false) != -1 || StrContains(s, "all", false) == 0)
+        if (StrContains(currentMap, line, false) == 0 || StrEqual(line, "all"))
         {
             CloseHandle(fileh);
             return true;
