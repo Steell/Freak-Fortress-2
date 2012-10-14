@@ -2089,7 +2089,7 @@ public Action:MakeBoss(Handle:hTimer,any:index)
     }
     
     CreateTimer(0.2, MakeModelTimer,index);
-    if (!IsVoteInProgress() && GetClientClassinfoCookie(Boss[index]))
+    if (!IsVoteInProgress() && GetClientClassInfoCookie(Boss[index]))
         HelpPanelBoss(index);
     
     if (!IsPlayerAlive(Boss[index]))
@@ -2345,7 +2345,7 @@ public Action:MakeNotBoss(Handle:hTimer,any:clientid)
         LastClass[client] = TFClass_Unknown;
         TF2_RespawnPlayer(client);
     }
-    if (!IsVoteInProgress() && GetClientClassinfoCookie(client))
+    if (!IsVoteInProgress() && GetClientClassInfoCookie(client))
         HelpPanel2(client);
 
     SetEntProp(client, Prop_Send, "m_bGlowEnabled", 0); 
@@ -4758,7 +4758,7 @@ public QueuePanelH(Handle:menu, MenuAction:action, param1, param2)
 }
 
 
-public Action:Command_QueuePanel(client, Args)
+public Action:Command_QueuePanel(client, args)
 {
     if (!Enabled2)
         return Plugin_Continue;
@@ -4810,60 +4810,77 @@ public Action:Command_QueuePanel(client, Args)
     return Plugin_Handled;
 }
 
+//Handles the command to reset a client's queue points.
 public Action:Command_ResetQueuePoints(client, args)
 {
+    //If the plugin is disabled, give up.
     if (!Enabled2)
         return Plugin_Continue;
-    if (client && !args)            //default players
+    
+    //If the client is a regular player and the arguments to this function are null, give him the panel.
+    //???? Under what conditions is "args" null?
+    if (client != 0 && !args)
     {
-        TurnToZeroPanel(client,client);
+        TurnToZeroPanel(client, client);
         return Plugin_Handled;
     }
-    if (!client)        //No confirmation for console
+    //???? I think this is a malformed conditional: if client is 0, then what happens when you set his queue points to 0?
+    //If the client isn't a regular player, then he's being forced to reset his points.
+    if (client == 0)
     {
+        //Force the client to set his queue points to 1.
         TurnToZeroPanelH(INVALID_HANDLE, MenuAction_Select, client, 1);
         return Plugin_Handled;
     }
-    new AdminId:admin = GetUserAdmin(client);   //default players again
+    //If the client isn't an admin, just give him a regular panel.
+    new AdminId:admin = GetUserAdmin(client);
     if((admin == INVALID_ADMIN_ID) || !GetAdminFlag(admin, Admin_Cheats))
     {
-        TurnToZeroPanel(client,client);
+        TurnToZeroPanel(client, client);
         return Plugin_Handled;
     }   
-    //admins
+    //Otherwise, if he is an admin, ????
     if (args != 1)
     {
         ReplyToCommand(client, "[FF2] Usage: ff2_resetqueuepoints < target >");
         return Plugin_Handled;
     }
 
-    decl String:targetname[MAX_TARGET_LENGTH];
-    GetCmdArg(1, targetname, MAX_TARGET_LENGTH);
+    //Get the target.
+    decl String:targetName[MAX_TARGET_LENGTH];
+    GetCmdArg(1, targetName, MAX_TARGET_LENGTH);
+    
+    //Declare data/buffer.
     new String:target_name[MAX_TARGET_LENGTH];
     new target_list[1], target_count;
     new bool:tn_is_ml;
 
-    if ((target_count = ProcessTargetString(
-            targetname,
-            client,
-            target_list,
-            1,
-            0,
-            target_name,
-            MAX_TARGET_LENGTH,
-            tn_is_ml)) <= 0)
+    //Get the number of clients targeted.
+    target_count = ProcessTargetString(targetName, client,
+                                            target_list, 1,
+                                            0,
+                                            target_name, MAX_TARGET_LENGTH,
+                                            tn_is_ml)
+    //If no clients were targeted, error.
+    if (target_count <= 0)
     {
         ReplyToTargetError(client, target_count);
         return Plugin_Handled;
     }
+    
+    //Otherwise, give the first target the panel.
+    //???? Wouldn't it make more sense to give EVERY targeted client the panel? That's the whole idea of targeting multiple clients, right?
     TurnToZeroPanel(client,target_list[0]);
     return Plugin_Handled;
 }
 
+//Handles events for the panel asking the player if he wants to reset his queue points.
 public TurnToZeroPanelH(Handle:menu, MenuAction:action, param1, param2)
 {
+    //If the player chose to reset his queue points:
     if (action == MenuAction_Select && param2 == 1)
     {
+        //Print the information to the correct player's chat.
         if (shortname[param1] == param1)
             CPrintToChat(param1,"{olive}[FF2]{default} %t","to0_done");
         else
@@ -4871,46 +4888,70 @@ public TurnToZeroPanelH(Handle:menu, MenuAction:action, param1, param2)
             CPrintToChat(param1,"{olive}[FF2]{default} %t","to0_done_admin",shortname[param1]);
             CPrintToChat(shortname[param1],"{olive}[FF2]{default} %t","to0_done_by_admin",param1);
         }
+        
+        //Set the queue points.
         SetClientQueuePoints(shortname[param1],0);
     }
 }
 
-public Action:TurnToZeroPanel(caller,client)
+//Creates a panel asking the player if he wants to reset his queue points
+//  and sends it to the given client.
+public Action:TurnToZeroPanel(caller, client)
 {
+    //If the plugin is disabled, give up.
     if (!Enabled2)
         return Plugin_Continue;
+        
+    //Create the panel.
     new Handle:panel = CreatePanel();
-    decl String:s[512];
+    //Get the title.
+    const size = 512;
+    decl String:s[size];
     SetGlobalTransTarget(caller);
     if (caller == client)
-        Format(s,512,"%t","to0_title");
-    else
-        Format(s,512,"%t","to0_title_admin",client);
-    PrintToChat(caller,s);
-    SetPanelTitle(panel,s);
-    Format(s,512,"%t","Yes");
-    DrawPanelItem(panel,s);
-    Format(s,512,"%t","No");
-    DrawPanelItem(panel,s);
-    shortname[caller]=client;
+        Format(s, size, "%t", "to0_title");
+    else Format(s, size, "%t", "to0_title_admin", client);
+    SetPanelTitle(panel, s);
+    PrintToChat(caller, s);
+    
+    //Add the panel options.
+    Format(s, size, "%t", "Yes");
+    DrawPanelItem(panel, s);
+    Format(s, size, "%t", "No");
+    DrawPanelItem(panel, s);
+    
+    //????
+    shortname[caller] = client;
+    
+    //Send the panel to the client.
     SendPanelToClient(panel, caller, TurnToZeroPanelH, 9001);
+    
+    //Clean up.
     CloseHandle(panel);
     return Plugin_Handled;
 }
 
-bool:GetClientClassinfoCookie(client)
+//Get some data from the client's cookie.
+//???? What data is being pulled from the cookie?
+bool:GetClientClassInfoCookie(client)
 {
+    //If the given client isn't valid or is fake, quit.
     if (!IsValidClient(client))
         return false;
     if (IsFakeClient(client))
         return false;
+    //If the client's cookies aren't cached, return affirmative.
     if (!AreClientCookiesCached(client))
         return true;
+        
+    //Create some buffers and put the client's cookie data in them.
     decl String:s[24];
     decl String:ff2cookies_values[8][5];
-    GetClientCookie(client, FF2Cookies, s,24);
-    ExplodeString(s, " ", ff2cookies_values,8,5);
-    return StringToInt(ff2cookies_values[3])==1;
+    GetClientCookie(client, FF2Cookies, s, 24);
+    ExplodeString(s, " ", ff2cookies_values, 8, 5);
+    
+    //See if a value is equal to 1.
+    return StringToInt(ff2cookies_values[3]) == 1;
 }
 
 // Int -> Int
@@ -4990,8 +5031,9 @@ stock IsBoss(client)
     return 0;
 }
 
-DoOverlay(client,const String:overlay[])
-{   
+//???? Not sure what this does.
+DoOverlay(client, const String:overlay[])
+{
     SetCommandFlags("r_screenoverlay", GetCommandFlags("r_screenoverlay") & (~FCVAR_CHEAT));
     ClientCommand(client, "r_screenoverlay \"%s\"", overlay);
     SetCommandFlags("r_screenoverlay", GetCommandFlags("r_screenoverlay") & FCVAR_CHEAT);
