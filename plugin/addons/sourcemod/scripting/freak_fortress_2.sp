@@ -4996,10 +4996,16 @@ DoOverlay(client,const String:overlay[])
     ClientCommand(client, "r_screenoverlay \"%s\"", overlay);
     SetCommandFlags("r_screenoverlay", GetCommandFlags("r_screenoverlay") & FCVAR_CHEAT);
 }
+
+//Reacts to panel events.
+//param1 is the client.
+//param2 is the chosen menu item.
 public Command_FF2PanelH(Handle:menu, MenuAction:action, param1, param2)
 {
+    //If an option was selected:
     if (action == MenuAction_Select)
     {
+        //React based on the item that was selected.
         switch (param2)
         {
             case 1:
@@ -5021,43 +5027,61 @@ public Command_FF2PanelH(Handle:menu, MenuAction:action, param1, param2)
     }
 }
   
+//Creates a panel.
+//???? No idea what panel is being made.
 public Action:Command_FF2Panel(client, args)
 {
+    //If the plugin is disabled or the given client isn't valid, stop.
     if (!Enabled2 || !IsValidClient(client, false))
         return Plugin_Continue;
+        
+    //Set the client's cloak meter to 0.8.
     SetEntPropFloat(client, Prop_Send, "m_flCloakMeter", 0.8);
+    
+    //Create the panel and add items to it.
     new Handle:panel = CreatePanel();
-    decl String:s[256];
+    const size = 256;
+    decl String:s[size];
     SetGlobalTransTarget(client);
-    Format(s, 256, "%t", "menu_1");
+    Format(s, size, "%t", "menu_1");
     SetPanelTitle(panel, s);
-    Format(s, 256, "%t", "menu_3");
+    Format(s, size, "%t", "menu_3");
     DrawPanelItem(panel, s);
-    Format(s, 256, "%t", "menu_7");
+    Format(s, size, "%t", "menu_7");
     DrawPanelItem(panel, s);
-    Format(s, 256, "%t", "menu_4");
+    Format(s, size, "%t", "menu_4");
     DrawPanelItem(panel, s);
-    Format(s, 256, "%t", "menu_5");
+    Format(s, size, "%t", "menu_5");
     DrawPanelItem(panel, s);
-    Format(s, 256, "%t", "menu_8");
+    Format(s, size, "%t", "menu_8");
     DrawPanelItem(panel, s);
-    Format(s, 256, "%t", "menu_9");
+    Format(s, size, "%t", "menu_9");
     DrawPanelItem(panel, s);
-    Format(s, 256, "%t", "menu_9a");
+    Format(s, size, "%t", "menu_9a");
     DrawPanelItem(panel, s);
-    Format(s, 256, "%t", "menu_6");
+    Format(s, size, "%t", "menu_6");
     DrawPanelItem(panel, s);
+    
+    //Send the panel to the client.
     SendPanelToClient(panel, client, Command_FF2PanelH, 9001);
+    
+    //Clean up.
     CloseHandle(panel);
     return Plugin_Handled;
 }
 
+//Handles events for a panel.
+//param1 is the client.
+//param2 is the menu item selected.
 public NewPanelH(Handle:menu, MenuAction:action, param1, param2)
 {
+    //If something was selected:
     if (action == MenuAction_Select)
     {
+        //React to the menu item that was selected.
         switch (param2)
         {
+            //???? These names are no help at all.
             case 1:
             {
                 if (curHelp[param1] <= 0)
@@ -5140,6 +5164,7 @@ public Action:NewPanel(client, versionindex)
     return Plugin_Continue;
 }
 
+//Draws a panel with the changelog data for the given version index.
 stock FindVersionData(Handle:panel, versionindex)
 {
     switch (versionindex)
@@ -5275,42 +5300,69 @@ stock FindVersionData(Handle:panel, versionindex)
     }
 }
 
+//Reacts to the command to show a panel for toggling the class info.
 public Action:HelpPanel3Cmd(client, args)
 {
+    //Check for valid client.
     if (!IsValidClient(client)) return Plugin_Continue;
+    
+    //Show the panel.
     HelpPanel3(client);
+    //???? Shouldn't this return the return value of HelpPanel3()?
     return Plugin_Handled;
 }
 
+//Displays the panel to toggle the class info.
 public Action:HelpPanel3(client)
 {
+    //Make sure the plugin is enabled.
     if (!Enabled2) 
         return Plugin_Continue;
+        
+    //Create the panel.
     new Handle:panel = CreatePanel();
     SetPanelTitle(panel, "Turn the Freak Fortress 2 class info...");
     DrawPanelItem(panel, "On");
     DrawPanelItem(panel, "Off");
+    
+    //Give the client the panel.
     SendPanelToClient(panel, client, ClassinfoTogglePanelH,9001);
+    
+    //Finish up.
     CloseHandle(panel);
     return Plugin_Handled;
 }
 
-
+//Reacts to a choice being made on a panel (The class info panel?).
+//param1 is the client.
+//param2 is the menu option being selected.
 public ClassinfoTogglePanelH(Handle:menu, MenuAction:action, param1, param2)
 {
+    //If the given client is valid:
     if (IsValidClient(param1))
     {
+        //If the player selected an option:
         if (action == MenuAction_Select)
         {
+            //Create some buffers.
             decl String:s[24];
             decl String:ff2cookies_values[8][5];
+            //Get client data.
             GetClientCookie(param1, FF2Cookies, s, 24);
-            ExplodeString(s, " ", ff2cookies_values,8,5);
+            //Separate out the data.
+            ExplodeString(s, " ", ff2cookies_values, 8, 5);
+            
+            //Change the data based on the arguments.
+            //???? What exactly is this changing?
             if (param2 == 2)
-                Format(s,24,"%s %s %s 0 %s %s %s",ff2cookies_values[0],ff2cookies_values[1],ff2cookies_values[2],ff2cookies_values[4],ff2cookies_values[5],ff2cookies_values[6],ff2cookies_values[7]);
+                Format(s, 24, "%s %s %s 0 %s %s %s", ff2cookies_values[0], ff2cookies_values[1], ff2cookies_values[2], ff2cookies_values[4], ff2cookies_values[5], ff2cookies_values[6], ff2cookies_values[7]);
             else
-                Format(s,24,"%s %s %s 1 %s %s %s",ff2cookies_values[0],ff2cookies_values[1],ff2cookies_values[2],ff2cookies_values[4],ff2cookies_values[5],ff2cookies_values[6],ff2cookies_values[7]);
+                Format(s, 24, "%s %s %s 1 %s %s %s", ff2cookies_values[0], ff2cookies_values[1], ff2cookies_values[2], ff2cookies_values[4], ff2cookies_values[5], ff2cookies_values[6], ff2cookies_values[7]);
+            
+            //Set the data.
             SetClientCookie(param1, FF2Cookies,s);
+            
+            //Notify the client.
             CPrintToChat(param1,"{olive}[VSH]{default} %t","ff2_classinfo", param2 == 2 ? "off" : "on");
         }
     }
