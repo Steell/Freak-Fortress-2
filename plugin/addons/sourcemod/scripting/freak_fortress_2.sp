@@ -37,7 +37,8 @@ new bool:b_allowBossChgClass = false; // Can the boss change class?
 new bool:b_BossChgClassDetected = false;
 new OtherTeam = 2; // Team value for the player-filled team; 2 is RED Team
 new BossTeam = 3; // Team value for the boss-filled team; 3 is BLU Team
-new FF2RoundState;
+// TODO: Make enum for FF2RoundState
+new FF2RoundState; // State of the current round; -1 means what? (round finished?); 0 means round in progress; 1 means what?; 2 means round finished
 new playing;
 new healthcheckused;
 new RedAlivePlayers; // Number of non-boss players left alive
@@ -60,7 +61,7 @@ new curHelp[MAXPLAYERS + 1];
 #define FF2FLAG_USEBOSSTIMER            (1 << 8)        //Used to prevent Boss' timer.
 #define FF2FLAG_USINGABILITY            (1 << 9)        //Used to prevent Boss' hints about abilities buttons.
 #define FF2FLAGS_SPAWN              ~FF2FLAG_UBERREADY & ~FF2FLAG_ISBUFFED & ~FF2FLAG_TALKING & ~FF2FLAG_ALLOWSPAWNINBOSSTEAM & FF2FLAG_USEBOSSTIMER & ~FF2FLAG_USINGABILITY
-new FF2flags[MAXPLAYERS + 1];
+new FF2flags[MAXPLAYERS + 1];   // Container for the above flags for ALL CLIENTS
 
 new Boss[MAXPLAYERS+1];
 new BossHealth[MAXPLAYERS+1];
@@ -1970,7 +1971,7 @@ public Action:Timer_SkipCommand_FF2Panel(Handle:hTimer)
 
 public Action:MessageTimer(Handle:hTimer)
 {
-    if (FF2RoundState!= 1)
+    if (FF2RoundState != 1)
         return Plugin_Continue;
 
     if (checkdoors)
@@ -2874,8 +2875,12 @@ public Action:Event_OnPlayerSpawn(Handle:event, const String:name[], bool:dontBr
     return Plugin_Continue;
 }
 
+// ???? ClientTimer: 
+// ???? hTimer: The timer being ticked
+// ???? Update all clients based on given timer.
 public Action:ClientTimer(Handle:hTimer)
 {
+    // If the round is finished, stop the plugin
     if (FF2RoundState > 1 || FF2RoundState == -1)
         return Plugin_Stop;
     decl String:wepclassname[32];
@@ -2888,30 +2893,56 @@ public Action:ClientTimer(Handle:hTimer)
             if (!(FF2flags[client] & FF2FLAG_HUDDISABLED))
             {
                 SetHudTextParams(-1.0, 0.88, 0.35, 90, 255, 90, 255, 0, 0.35, 0.0, 0.1);
+                // If client is not alive, show them the applicable observer details for their target
                 if (!IsPlayerAlive(client))
                 {
+                    // Get their observer entity index
                     new obstarget = GetEntPropEnt(client, Prop_Send, "m_hObserverTarget");
+                    // If the target is a valid entity and isn't a boss and is not themselves
                     if (IsValidClient(obstarget) && !IsBoss(obstarget) && obstarget != client)
+                        // Show them the HUD panel for the observed player (includes the amount of
+                        //   damage they have done to the boss(es))
                         ShowSyncHudText(client, rageHUD, "Damage: %d - %N's Damage: %d", Damage[client], obstarget, Damage[obstarget]);
                     else
+                        // Otherwise, show them the HUD panel for the observed boss
                         ShowSyncHudText(client, rageHUD, "Damage: %d", Damage[client]);
                     continue;
                 }
+                // Show the client their own player observer HUD
                 ShowSyncHudText(client, rageHUD, "Damage: %d", Damage[client]);
             }
-            if (!IsPlayerAlive(client)) continue;
+            // If the given client is dead, nothing more to do for them
+            if (!IsPlayerAlive(client))
+                continue;
+            // Else, the given client is alive, so update their data
+            // Get the class of the given client
             new TFClassType:class = TF2_GetPlayerClass(client);
+            // Get the active weapon of the given client
             new weapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
-            if (weapon <= MaxClients || !IsValidEntity(weapon) || !GetEdictClassname(weapon, wepclassname, sizeof(wepclassname))) strcopy(wepclassname, sizeof(wepclassname), "");
+            // ???? If the active weapon is actually a client
+            if (weapon <= MaxClients
+                // Or if the weapon isn't a valid entity
+                || !IsValidEntity(weapon)
+                // Or if the weapon doesn't have a classname set
+                || !GetEdictClassname(weapon, wepclassname, sizeof(wepclassname)))
+                // Then set wepclassname to an empty string
+                strcopy(wepclassname, sizeof(wepclassname), "");
+            // Does wepclassname contain the class name of a weapon?
             new bool:validwep = (strncmp(wepclassname, "tf_wea", 6, false) == 0);
+            // If wepclassname is a weapon classname, get the index of its definition,
+            //   otherwise set index to -1
             new index = (validwep ? GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex") : -1);
+            // If the given client is a Medic
             if (class == TFClass_Medic)
             {
+                // 
                 if (weapon == GetPlayerWeaponSlot(client, TFWeaponSlot_Primary))
                 {
                     new medigun = GetPlayerWeaponSlot(client, TFWeaponSlot_Secondary);
                     decl String:mediclassname[64];
-                    if (IsValidEdict(medigun) && GetEdictClassname(medigun, mediclassname, sizeof(mediclassname)) && strcmp(mediclassname, "tf_weapon_medigun", false) == 0)
+                    if (IsValidEdict(medigun)
+                        && GetEdictClassname(medigun, mediclassname, sizeof(mediclassname))
+                        && strcmp(mediclassname, "tf_weapon_medigun", false) == 0)
                     {
                         new charge = RoundToFloor(GetEntPropFloat(medigun, Prop_Send, "m_flChargeLevel") * 100);
                         if (!(FF2flags[client] & FF2FLAG_HUDDISABLED))
@@ -2919,6 +2950,7 @@ public Action:ClientTimer(Handle:hTimer)
                             SetHudTextParams(-1.0, 0.83, 0.35, 255, 255, 255, 255, 0, 0.2, 0.0, 0.1);
                             ShowSyncHudText(client, jumpHUD, "%T: %i", "uber-charge", client, charge);
                         }
+                        // If the Medic is fully charged, and neither 
                         if (charge == 100 && !(FF2flags[client] & FF2FLAG_UBERREADY))
                         {
                             FakeClientCommandEx(client, "voicemenu 1 7");
@@ -5735,8 +5767,7 @@ stock GetHealingTarget(client, bool:checkNonMedigun = false)
 //If "replayCheck" is true, this function checks if the client is a fake "replay" or "sourceTV" entity
 // ("replay" or "sourceTV" entities will return false).
 stock IsValidClient(client, bool:replayCheck = true)
-{
-    //If the ID is out of range, it isn't valid.
+x    //If the ID is out of range, it isn't valid.
     if (client <= 0 || client > MaxClients) return false;
     //If the client isn't in-game, it isn't valid.
     if (!IsClientInGame(client)) return false;
