@@ -110,7 +110,7 @@ new Handle:timeleftHUD;
 new Handle:abilitiesHUD;
 new Handle:doorchecktimer;
 
-new bool:Enabled = true; // Is the plugin disabled?
+new bool:Enabled = true; // Is the plugin enabled?
 new bool:Enabled2 = true;
 new PointDelay = 6;
 new Float:Announce = 120.0;
@@ -119,7 +119,7 @@ new PointType = 0;
 new bool:BossCrits = true;
 new Float:circuitStun = 0.0;
 new UseCountdown = 120;
-new bool:SpecForceBoss = false;
+new bool:SpecForceBoss = false; // If true, spectators can become bosses.
 
 new Handle:MusicTimer;
 new Handle:BossInfoTimer[MAXPLAYERS+1][2];
@@ -4240,24 +4240,25 @@ public Action:TF2_CalcIsAttackCritical(client, weapon, String:weaponname[], &boo
     return Plugin_Continue;
 }
 
+//Finds the client with the largest queue points.
 stock FindBosses(bool:array[])
 {
-    new tBoss;  
-    for(new i = 1; i <= MaxClients; i++)
+    //"tBoss" holds the client with the largest number of queue points.
+    new tBoss = 0;  
+    //Go through every player ID.
+    for (new i = 1; i <= MaxClients; i++)
     {
-        if (SpecForceBoss)
-        {
-            if (IsValidEdict(i) && IsClientConnected(i) &&
-                GetClientQueuePoints(i) >= GetClientQueuePoints(tBoss) && !array[i])
-                    tBoss = i;
-        }
-        else
-        {
-            if (IsValidEdict(i) && IsClientConnected(i) && GetClientTeam(i) > _:TFTeam_Spectator &&
-                GetClientQueuePoints(i) >= GetClientQueuePoints(tBoss) && !array[i])
-                    tBoss = i;
-        }
+        //This client should become the new boss if:
+        //  1) The client is valid.
+        //  2) Either the client isn't a spectator, or this plugin doesn't care if he is a spectator.
+        //  3) This client has more queue points than the currently-tracked boss.
+        if (IsValidEdict(i) && IsClientConnected(i) && !array[i] &&
+            (SpecForceBoss || GetClientTeam(i) > _:TFTeam_Spectator) &&
+            GetClientQueuePoints(i) >= GetClientQueuePoints(tBoss))
+            tBoss = i;
     }
+    
+    //Return the value.
     return tBoss;
 }
 
@@ -4789,55 +4790,88 @@ public QueuePanelH(Handle:menu, MenuAction:action, param1, param2)
     return false;  
 }
 
-
+//Gets the panel showing the current bosses and the players with the highest queue points.
 public Action:Command_QueuePanel(client, args)
 {
+    //If the plugin isn't enabled, stop.
     if (!Enabled2)
         return Plugin_Continue;
+        
+    new const maxPanelElements = 9;
+    
+    //Create the panel.
     new Handle:panel = CreatePanel();
     SetGlobalTransTarget(client);
+    
+    //Create a string for the panel title.
     decl String:s[512];
-    Format(s,512,"%t","thequeue");  
-    new i,tBoss,bool:added[MAXPLAYERS+1];
-    decl j;
-    SetPanelTitle(panel, s);    
-    for(j = 0; j <= MaxClients; j++)
-        if ((tBoss = Boss[i]) && IsValidEdict(tBoss) && IsClientInGame(tBoss))
+    Format(s, 512, "%t", "thequeue");
+    SetPanelTitle(panel, s);
+    
+    //"tBoss" is a temporary reference to the current boss being iterated over.
+    //"added" is indexed by player ID, and holds whether or not the player with that ID was added to the panel.
+    //"numbAdded" is the number of players currently added to the panel.
+    new tBoss, bool:added[MAXPLAYERS+1], numbAdded = 0;
+    
+    //First, add the bosses to the panel.
+    for (new j = 0; j <= MaxClients; j++)
+    {
+        //If the current player ID is a valid boss:
+        tBoss = Boss[j];
+        if (tBoss && IsValidEdict(tBoss) && IsClientInGame(tBoss))
         {
+            //Add him.
             added[tBoss] = true;
-            Format(s,64,"%N - %i",tBoss,GetClientQueuePoints(tBoss));
-            DrawPanelItem(panel,s);
-            i++;
+            numbAdded++;
+            
+            //Add him to the panel.
+            Format(s, 64, "%N - %i", tBoss, GetClientQueuePoints(tBoss));
+            DrawPanelItem(panel, s);
         }
+    }
+    
+    //Draw a line under the boss list.
     DrawPanelText(panel,"---");
-    new pingas;
+    //???? What is this 'pingas' for?
+    new pingas = 0;
     do
     {
-        tBoss = FindBosses(added);  
+        //Get the client with the highest number of queue points.
+        tBoss = FindBosses(added);
+        //Make sure the variable points to a valid client.
         if (tBoss && IsValidEdict(tBoss) && IsClientInGame(tBoss))
-        {       
+        {
+            //Draw the next boss and his queue points.
+            Format(s, 64, "%N - %i", tBoss, GetClientQueuePoints(tBoss));
+            DrawPanelText(panel, s);
+            
+            //If the client that called this command is the next boss, remove one from the count of current bosses.
             if (client == tBoss)
-            {
-                Format(s,64,"%N - %i",tBoss,GetClientQueuePoints(tBoss));
-                DrawPanelText(panel,s);
-                i--;
-            }
-            else
-            {
-                Format(s,64,"%N - %i",tBoss,GetClientQueuePoints(tBoss));
-                DrawPanelItem(panel,s);
-            }
+                numbAdded--;
+                
+            //Mark this client as having been added.
             added[tBoss] = true;
-            i++;
+            numbAdded++;
         }
+        
+        //Increment.
         pingas++;
     }
-    while (i < 9 && pingas < 100);
-    for(; i < 9; i++)
+    //Repeat as long as fewer than a certain number of players are added and ???? is less than 100.
+    while (numbAdded < maxPanelElements && pingas < 100);
+    //For every other entry in the panel that hasn't been filled by a player,
+    //  Fill it with empty space.
+    for(; numbAdded < maxPanelElements; numbAdded++)
         DrawPanelItem(panel,"");
-    Format(s,64,"%t (%t)","your_points",GetClientQueuePoints(client),"to0");
+        
+    //Get the client's queue point info and display it at the bottom.
+    Format(s, 64, "%t (%t)", "your_points", GetClientQueuePoints(client), "to0");
     DrawPanelItem(panel,s);
+    
+    //Send the panel to the client.
     SendPanelToClient(panel, client, QueuePanelH, 9001);
+    
+    //Clean up.
     CloseHandle(panel);
     return Plugin_Handled;
 }

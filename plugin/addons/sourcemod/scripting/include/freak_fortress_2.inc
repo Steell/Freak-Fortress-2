@@ -89,7 +89,7 @@ native FF2_GetBossTeam();
  *								   Don't forget: 1st chatacter from chatacters.cfg is _0th_ here
  * @return		    		true if Special exists, false if not
  */
-native bool:FF2_GetBossSpecial(index=0, String:buffer[], bufferlen, isNumOfSpecial = false);
+native bool:FF2_GetBossSpecial(index = 0, String:buffer[], bufferlen, isNumOfSpecial = false);
 
 /**
  * Gets Max Health of current Boss
@@ -97,7 +97,7 @@ native bool:FF2_GetBossSpecial(index=0, String:buffer[], bufferlen, isNumOfSpeci
  * @param index 		Index of boss (0, as usual, but, for example, companion like Seeldier has 1)
  * @return		    	Max Health of Boss
  */
-native FF2_GetBossMaxHealth(index=0);
+native FF2_GetBossMaxHealth(index = 0);
 
 /**
  * Gets charge meter value of current Boss
@@ -175,7 +175,7 @@ native bool:FF2_HasAbilityEx(index, const String:ability_name[]);
  *							2 - by reload button
  * @noreturn
  */
-native FF2_DoAbility(index, const String:plugin_name[], const String:ability_name[], slot, buttonmode=0);
+native FF2_DoAbility(index, const String:plugin_name[], const String:ability_name[], slot, buttonmode = 0);
 
 /**
  * Gets integer argument of ability
