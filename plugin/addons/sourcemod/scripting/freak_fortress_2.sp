@@ -4605,7 +4605,7 @@ stock bool:RandomSound(const String: keyvalue[], String: str[], length, index = 
     return true;
 }
 
-stock bool:RandomSoundAbility(const String: keyvalue[], String: str[],length, index = 0, slot = 0)
+stock bool:RandomSoundAbility(const String: keyvalue[], String: str[], length, index = 0, slot = 0)
 {
     if (index == -1 || Special[index] == -1 || !CharacterConfigs[Special[index]])
         return false;
@@ -4648,46 +4648,79 @@ ForceTeamWin(team)
     AcceptEntityInput(ent, "SetWinner");
 }
 
-public bool:PickSpecial(index,index2)
+//???? Not actually sure what this function does. From the name, I assume it's choosing the next boss player.
+public bool:PickSpecial(index, index2)
 {
+    //If the two indices are equal:
     if (index == index2)
     {
+        //Grab the incoming client at the given index and set him to the special.
+        //???? What is Incoming?
         Special[index] = Incoming[index];
         Incoming[index] = -1;
+        
+        //If the "client" was actually an invalid entity, we can exit now.
         if (Special[index] != -1)
             return true;
+            
+        //Create an array to hold the chances of every special.
         new chances[MAXSPECIALS];
         new chances_index;
-        new String:s_chances[MAXSPECIALS*2][8];
+        new String:s_chances[MAXSPECIALS * 2][8];
+        
+        //If ChancesString isn't the empty string:
+        //???? What is ChancesString?
         if (ChancesString[0])
         {
-            ExplodeString(ChancesString, " ; ", s_chances,MAXSPECIALS*2,8);
-            chances[0]=StringToInt(s_chances[1]);
-            for(chances_index = 3; s_chances[chances_index][0]; chances_index+=2)
-                chances[chances_index/2]=StringToInt(s_chances[chances_index])+chances[chances_index/2-1];
-            chances_index-=2;
+            //???? Not sure what this does, but it seems that it is creating the array of chances each client has to become the next special?
+            //Get the components of ChancesString.
+            ExplodeString(ChancesString, " ; ", s_chances, MAXSPECIALS * 2, 8);
+            //Put the first element into chances[0].
+            chances[0] = StringToInt(s_chances[1]);
+            //Starting at 3, increase the chances index in increments of two.
+            for (chances_index = 3; s_chances[chances_index][0]; chances_index += 2)
+                chances[chances_index / 2] = StringToInt(s_chances[chances_index]) +
+                                             chances[(chances_index / 2) - 1];
+            //Jump back to the highest valid chances index.
+            chances_index -= 2;
         }
+        //Counts the number of times the following loop evaluates.
         new pingas;
+        //Keep doing this until either
+        // 1) It's been done 100 times
+        // 2) The special's "blocked" property is not zero.
         do
         {
+            //If ChancesString is empty:
             if (ChancesString[0])
             {
-                new random_num = GetRandomInt(0,chances[chances_index/2]);
+                //Get a random value.
+                new random_num = GetRandomInt(0, chances[chances_index / 2]);
                 decl see;
-                for(see = 0; random_num > chances[see]; see++) {}
-                decl String:name1[64];
-                Special[index] = StringToInt(s_chances[see*2])-1;
+                //Set "see" to the first index in "chances" that has a higher value than the random number.
+                //???? The random number is a random index in "chances", but it seems to be used as a value, not as an index to a value?
+                for (see = 0; random_num > chances[see]; see++) ;
+                
+                //Get the character name.
+                //Set the special to the given s_chances
+                Special[index] = StringToInt(s_chances[see * 2]) - 1;
                 KvRewind(CharacterConfigs[Special[index]]);
-                KvGetString(CharacterConfigs[Special[index]], "name", name1, 64," = Failed name = ");
+                decl String:name1[64];
+                KvGetString(CharacterConfigs[Special[index]], "name", name1, 64, " = Failed name = ");
             }
+            //Otherwise, get a random client I think???? and reset the special's character config reader.
             else
             {
-                Special[index] = GetRandomInt(0,NumLoadedCharacters-1);
+                Special[index] = GetRandomInt(0, NumLoadedCharacters - 1);
                 KvRewind(CharacterConfigs[Special[index]]);
             }
+            
+            //Increment the counter.
             pingas++;
         }
-        while (pingas < 100 && KvGetNum(CharacterConfigs[Special[index]], "blocked",0));
+        while (pingas < 100 && KvGetNum(CharacterConfigs[Special[index]], "blocked", 0));
+        
+        //If it was done 100 times without exiting, set the special to an invalid client.
         if (pingas == 100)
             Special[index] = 0;
     }
@@ -4749,40 +4782,63 @@ public bool:PickSpecial(index,index2)
     return true;
 }
 
-stock SpawnWeapon(client,String:name[],index,level,qual,String:att[])
+//Creates a weapon and equips the given client with it.
+//name: weapon name
+//index: weapon index
+//level: weapon level.
+//qual: weapon quality
+stock SpawnWeapon(client, String:name[], index, level, qual, String:att[])
 {
-    new Handle:hWeapon = TF2Items_CreateItem(OVERRIDE_ALL|FORCE_GENERATION);
+    //Create a weapon.
+    new Handle:hWeapon = TF2Items_CreateItem(OVERRIDE_ALL | FORCE_GENERATION);
+    
+    //Set its data.
     TF2Items_SetClassname(hWeapon, name);
     TF2Items_SetItemIndex(hWeapon, index);
     TF2Items_SetLevel(hWeapon, level);
     TF2Items_SetQuality(hWeapon, qual);
-    new String:atts[32][32];
-    new count = ExplodeString(att, " ; ", atts, 32, 32);
+    
+    //Get weapon attributes.
+    const new size = 32;
+    decl String:atts[size][size];
+    new count = ExplodeString(att, " ; ", atts, size, size);
+    
+    //If there's at least one attribute, set the attributes.
     if (count > 0)
     {
-        TF2Items_SetNumAttributes(hWeapon, count/2);
+        TF2Items_SetNumAttributes(hWeapon, count / 2);
         new i2 = 0;
-        for (new i = 0;  i < count;  i+= 2)
+        //The String[][] of attributes is a collection of pairs of attributes.
+        //I can't find the docs for TF2Items, but I think the first attribute is the name, and the second is the value?
+        for (new i = 0;  i < count;  i += 2)
         {
-            TF2Items_SetAttribute(hWeapon, i2, StringToInt(atts[i]), StringToFloat(atts[i+1]));
+            TF2Items_SetAttribute(hWeapon, i2, StringToInt(atts[i]), StringToFloat(atts[i + 1]));
             i2++;
         }
     }
-    else
-        TF2Items_SetNumAttributes(hWeapon, 0);
+    else TF2Items_SetNumAttributes(hWeapon, 0);
+    
+    //If the weapon handle is an invalid pointer, exit.
+    //???? Shouldn't this be done right after the handle is created? Or do those TF2Items functions sometimes invalidate the handle?
     if (hWeapon == INVALID_HANDLE)
         return -1;
+        
+    //Give the client the weapon and store its ID.
     new entity = TF2Items_GiveNamedItem(client, hWeapon);
+    
+    //Clean up and give the client the weapon.
     CloseHandle(hWeapon);
     EquipPlayerWeapon(client, entity);
     return entity;
 }
 
+//Handles the hint panel.
 public HintPanelH(Handle:menu, MenuAction:action, param1, param2)
 {
     return;
 }
 
+//Handles events for the panel that shows the current bosses/players with the highest queue points.
 public QueuePanelH(Handle:menu, MenuAction:action, param1, param2)
 {
     if (action == MenuAction_Select && param2 == 10)
