@@ -2875,6 +2875,7 @@ public Action:Event_OnPlayerSpawn(Handle:event, const String:name[], bool:dontBr
     return Plugin_Continue;
 }
 
+// TODO: Split into multiple functions
 // Update every client state based on the given timer
 public Action:ClientTimer(Handle:hTimer)
 {
@@ -3227,24 +3228,40 @@ public Action:ClientTimer(Handle:hTimer)
     return Plugin_Continue;
 }
 
+// BackUpBuffTimer(timer: timer that goes off when a backup banner use runs out,
+//                 int: client)
+// Given a timer and a client's user ID, removes the Backup Banner buff from the
+//   given client when the timer goes off
 public Action:BackUpBuffTimer(Handle:hTimer,any:clientid)
 {
+    // get the client of the given user ID
     new client = GetClientOfUserId(clientid);
+    // Remove the buff condition from the client
     TF2_RemoveCondition(client,TFCond_Buffed);
+    // ????
     FF2flags[client] &= ~FF2FLAG_ISBUFFED;
     return Plugin_Continue;
 }
 
+// FindSentry(int: client) -> int: sentry entity id
+// Given a client, finds the sentry owned by that client
 stock FindSentry(client)
 {
     new i = -1;
+    // Iterate through the entities until you either find the
+    //   sentry owned by the given client or run out of entities
     while ((i = FindEntityByClassname2(i, "obj_sentrygun")) != -1)
     {
-        if (GetEntPropEnt(i, Prop_Send, "m_hBuilder") == client) return i;
+        // If the current entity was built by the given client
+        if (GetEntPropEnt(i, Prop_Send, "m_hBuilder") == client)
+            // Return the found sentry
+            return i;
     }
+    // Else return not found flag
     return -1;
 }
 
+// ???? Updates a Boss's state based on given timer
 public Action:BossTimer(Handle:hTimer)
 {
     new bool:bIsEveryponyDead=true;
