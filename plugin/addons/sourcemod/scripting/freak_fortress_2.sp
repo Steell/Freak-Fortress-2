@@ -3264,61 +3264,96 @@ stock FindSentry(client)
 // ???? Updates a Boss's state based on given timer
 public Action:BossTimer(Handle:hTimer)
 {
-    new bool:bIsEveryponyDead=true;
-    for (new index = 0;index<=MaxClients; index++)
+    // Assume that every boss is dead
+    new bool:bIsEveryBossDead = true;
+    // Iterate through every client
+    for (new index = 0; index <= MaxClients; index++)
     {
+        // If the current boss isn't valid
         if (!IsValidClient(Boss[index], false))
             break;
+        // If the current boss is dead 
         if (!IsPlayerAlive(Boss[index]))
             continue;
+        // If the current round state is ????
         if (FF2RoundState == 2)
             break;
-        bIsEveryponyDead = false;
+        // If you've gotten to this point, at least one boss is alive
+        bIsEveryBossDead = false;
+        // If the flags are set up so that neither the boss uses flags nor the boss timer
         if (!(FF2flags[Boss[index]] & FF2FLAG_USEBOSSTIMER))
             continue;
+        // If the boss is jarated
         if (TF2_IsPlayerInCondition(Boss[index],TFCond_Jarated))
+            // Remove the jarate condition
             TF2_RemoveCondition(Boss[index],TFCond_Jarated);
+        // If the boss is marked for death from the boss
         if (TF2_IsPlayerInCondition(Boss[index], TFCond_MarkedForDeath))
+            // Remove the marked for death condition from the boss
             TF2_RemoveCondition(Boss[index], TFCond_MarkedForDeath);
-        SetEntPropFloat(Boss[index], Prop_Data, "m_flMaxspeed", CharacterSpeed[Special[index]]+0.7*(100-BossHealth[index]*100/BossLivesMax[index]/BossHealthMax[index]));
+        // ???? Set the max speed of the boss, but to what?
+        SetEntPropFloat(Boss[index], Prop_Data, "m_flMaxspeed", CharacterSpeed[Special[index]] + 0.7 * (100 - BossHealth[index] * 100 / BossLivesMax[index] / BossHealthMax[index]));
+        // If the boss's health is <= 0 yet they are still alive
         if (BossHealth[index] <= 0 && IsPlayerAlive(Boss[index]))
+            // Fix their healt by setting it to 1
             BossHealth[index] = 1;
+        // ???? Fix the boss's health if need be?
         SetBossHealthFix(Boss[index], BossHealth[index]);
-    
+        // If the flags are set up so that the boss's HUD is enabled
         if (!(FF2flags[Boss[index]] & FF2FLAG_HUDDISABLED))
         {
+            // Set the boss's HUD parameters
             SetHudTextParams(-1.0, 0.77, 0.15, 255, 255, 255, 255);
-            ShowSyncHudText(Boss[index], healthHUD, "%t","health",BossHealth[index]-BossHealthMax[index]*(BossLives[index]-1),BossHealthMax[index]);
+            // Display the boss's HUD
+            ShowSyncHudText(Boss[index], healthHUD, "%t", "health",
+                BossHealth[index] - BossHealthMax[index] * (BossLives[index] - 1), BossHealthMax[index]);
+            // If the boss's rage is fully charged
             if (RoundFloat(BossCharge[index][0]) == 100)
             {
+                // If the boss is a bot and the flags are set up so that bots can rage
                 if (IsFakeClient(Boss[index]) && !(FF2flags[Boss[index]] & FF2FLAG_BOTRAGE))
                 {
+                    // Create a timer to set off the boss's rage
                     CreateTimer(1.0, Timer_BotRage,index, TIMER_FLAG_NO_MAPCHANGE);
+                    // ????
                     FF2flags[Boss[index]] |= FF2FLAG_BOTRAGE;
                 }
+                // Else the boss is a player so tell them that they can rage
                 else
                 {
+                    // Set the rage HUD parameters
                     SetHudTextParams(-1.0, 0.83, 0.15, 255, 64, 64, 255);
+                    // Show the rage HUD
                     ShowSyncHudText(Boss[index], rageHUD,"%t","do_rage");
                 }
             }
+            // Else the boss's rage is not fully charged
             else
             {
+                // Set the boss's rage HUD parameters
                 SetHudTextParams(-1.0, 0.83, 0.15, 255, 255, 255, 255);
+                // Show the boss's rage HUD
                 ShowSyncHudText(Boss[index], rageHUD,"%t","rage_meter",RoundFloat(BossCharge[index][0]));
             }   
         }
+        // Set the ???? HUD parameters
         SetHudTextParams(-1.0, 0.88, 0.15, 255, 255, 255, 255);
         
+        // If the glow timer of the given boss has run out
         if (GlowTimer[index] <= 0.0)
         {
+            // Make the boss stop glowing
             SetEntProp(Boss[index], Prop_Send, "m_bGlowEnabled", 0);
+            // Set the glow timer to 0.0
             GlowTimer[index] = 0.0;
         }
+        // Else decrease the glow timer
         else
             GlowTimer[index] -= 0.2;
-        decl slot,j,buttonmode,count;
+
+        decl slot, j, buttonmode, count;
         decl String:lives[MAXRANDOMS][3];
+        
         for(new n = 1; ; n++)
         {       
             decl String:s[10];
@@ -3389,7 +3424,7 @@ public Action:BossTimer(Handle:hTimer)
             if (KSpreeTimer[i] > 0) 
                 KSpreeTimer[i]-= 0.2;   
     }
-    if (bIsEveryponyDead)
+    if (bIsEveryBossDead)
         return Plugin_Stop;
     return Plugin_Continue;
 }
