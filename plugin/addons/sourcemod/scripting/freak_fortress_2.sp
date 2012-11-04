@@ -2875,9 +2875,7 @@ public Action:Event_OnPlayerSpawn(Handle:event, const String:name[], bool:dontBr
     return Plugin_Continue;
 }
 
-// ???? ClientTimer: 
-// ???? hTimer: The timer being ticked
-// ???? Update all clients based on given timer.
+// Update every client state based on the given timer
 public Action:ClientTimer(Handle:hTimer)
 {
     // If the round is finished, stop the plugin
@@ -2886,6 +2884,7 @@ public Action:ClientTimer(Handle:hTimer)
     decl String:wepclassname[32];
     new i = -1;
     decl TFCond:cond;
+    // Iterate through the clients and update their states
     for(new client = 1; client <= MaxClients; client++)
     {
         if (IsValidClient(client) && !IsBoss(client) && !(FF2flags[client] & FF2FLAG_CLASSTIMERDISABLED))
@@ -2935,57 +2934,93 @@ public Action:ClientTimer(Handle:hTimer)
             // If the given client is a Medic
             if (class == TFClass_Medic)
             {
-                // 
+                // If the client's active weapon is their primary weapon
                 if (weapon == GetPlayerWeaponSlot(client, TFWeaponSlot_Primary))
                 {
+                    // Get the client's secondary weapon
                     new medigun = GetPlayerWeaponSlot(client, TFWeaponSlot_Secondary);
                     decl String:mediclassname[64];
+                    // If the medigun is valid
                     if (IsValidEdict(medigun)
+                        // And you successfully retrieved the classname of the weapon
                         && GetEdictClassname(medigun, mediclassname, sizeof(mediclassname))
+                        // And the name of the weapon says that it's a Medigun
                         && strcmp(mediclassname, "tf_weapon_medigun", false) == 0)
                     {
+                        // Get the current charge level as a percentage
                         new charge = RoundToFloor(GetEntPropFloat(medigun, Prop_Send, "m_flChargeLevel") * 100);
+                        // If the flags are set up to display the HUD for this client
                         if (!(FF2flags[client] & FF2FLAG_HUDDISABLED))
                         {
+                            // Set the HUD text params
                             SetHudTextParams(-1.0, 0.83, 0.35, 255, 255, 255, 255, 0, 0.2, 0.0, 0.1);
+                            // Show the Medic's Charge HUD
                             ShowSyncHudText(client, jumpHUD, "%T: %i", "uber-charge", client, charge);
                         }
-                        // If the Medic is fully charged, and neither 
+                        // If the Medic is fully charged, and the flags are set to announce that the
+                        //   client will announce his uber when ready 
                         if (charge == 100 && !(FF2flags[client] & FF2FLAG_UBERREADY))
                         {
+                            // Force the Medic to announce his ubercharge is ready
                             FakeClientCommandEx(client, "voicemenu 1 7");
+                            // ???? I have no clue what this is doing (bit-wise or?)
                             FF2flags[client] |= FF2FLAG_UBERREADY;
                         }
                     }
                 }
+                // If the client's active weapon is their secondary weapon
                 if (weapon == GetPlayerWeaponSlot(client, TFWeaponSlot_Secondary))
                 {
+                    // Get their healing target
                     new healtarget = GetHealingTarget(client,true);
+                    // If the healing target is both a valid client and a Scout
                     if (IsValidClient(healtarget) && TF2_GetPlayerClass(healtarget) == TFClass_Scout)
                     {
+                        // Speed up the Medic to match the Scout's speed
                         TF2_AddCondition(client, TFCond_SpeedBuffAlly, 0.3);
                     }
                 }
             }
+            // If there is only one player left alive on red and they aren't cloaked
             if (RedAlivePlayers == 1 && !TF2_IsPlayerInCondition(client, TFCond_Cloaked))
             {
+                // Give them Crits (using the Halloween Crit Candy condition)
                 TF2_AddCondition(client, TFCond_HalloweenCritCandy, 0.3);
+                // Get their primary weapon
                 new primary = GetPlayerWeaponSlot(client, TFWeaponSlot_Primary);
-                if (class == TFClass_Engineer && (IsValidEntity(primary) && primary > MaxClients ? GetEntProp(primary, Prop_Send, "m_iItemDefinitionIndex") : -1) == 141) SetEntProp(client, Prop_Send, "m_iRevengeCrits", 3);
+                // If they are an engineer
+                if (class == TFClass_Engineer
+                    // And their primary is a valid entity
+                    && (IsValidEntity(primary)
+                    // ???? And it is not a client, then if their primary is a Frontier Justice?
+                    && primary > MaxClients ? GetEntProp(primary, Prop_Send, "m_iItemDefinitionIndex") : -1) == 141)
+                    // Give them 3 Revenge Crits
+                    SetEntProp(client, Prop_Send, "m_iRevengeCrits", 3);
+                // Give them the buff condition
                 TF2_AddCondition(client, TFCond_Buffed, 0.3);
                 continue;
             }
+            // If there are only 2 players left alive on red and they aren't cloaked
             if (RedAlivePlayers == 2 && !TF2_IsPlayerInCondition(client, TFCond_Cloaked))
+                // Give them both the buff condition
                 TF2_AddCondition(client,TFCond_Buffed,0.3);
+            // If the game is also Medieval mode
             if (bMedieval)
+                // Do nothing else
                 continue;
             cond = TFCond_HalloweenCritCandy;
-            if (TF2_IsPlayerInCondition(client, TFCond_CritCola) && (class == TFClass_Scout || class == TFClass_Heavy))
+            // If the given client has the CritaCola condition
+            //   (from Crit'a'Cola or Buffalo Steak Sandvich)
+            if (TF2_IsPlayerInCondition(client, TFCond_CritCola)
+                // and the client is either Scout or Heavy
+                && (class == TFClass_Scout || class == TFClass_Heavy))
             {
+                // Give them the Halloween Crit Candy condition
                 TF2_AddCondition(client,cond,0.3);
                 continue;
             }
             new medic = -1;
+            // Iterate through the clients to find a Medic that is healing the given client
             for(i = 1; i <= MaxClients; i++)
             {
                 if(IsValidClient(i) && IsPlayerAlive(i) && GetHealingTarget(i,true) == client)
@@ -2995,69 +3030,153 @@ public Action:ClientTimer(Handle:hTimer)
                 }
             }
             new bool:addthecrit = false;
+            // If the client's current weapon is valid and their melee weapon
             if (validwep && weapon == GetPlayerWeaponSlot(client, TFWeaponSlot_Melee))
             {
                 decl String:classname[64];
-                if (!GetEdictClassname(weapon, classname, sizeof(classname))) strcopy(classname, sizeof(classname), "");
+                // If the classname of the current weapon isn't set
+                if (!GetEdictClassname(weapon, classname, sizeof(classname)))
+                    // Make classname an empty string
+                    strcopy(classname, sizeof(classname), "");
+                // If the current weapon isn't a Spy Knife
                 if (strcmp(classname, "tf_weapon_knife", false) != 0)
+                    // Give it crits
                     addthecrit = true;
             }
+            // Set weapon parameters
             switch (index)
             {
-                case 305, 14, 56, 201, 230, 402, 16, 203, 58, 526: addthecrit = true;
+                /* If the weapon is any of the following weapons:
+                    Crusader's Crossbow
+                    Sniper Rifle
+                    The Huntsman
+                    Sniper Rifle (Renamed / Strange)
+                    The Sydney Sleeper
+                    The Bazaar Bargain
+                    SMG
+                    SMG (Renamed / Strange)
+                    Jarate
+                    Tha Machina
+                    */
+                case 305, 14, 56, 201, 230, 402, 16, 203, 58, 526:
+                // Give them crits
+                addthecrit = true;
+                /* If the weapon is any of the following weapons:
+                    Engineer's Pistol
+                    Scout's Pistol
+                    Vintage Lugermorph
+                    Pistol (Renamed / Strange)
+                    Lugermorph
+                    The Winger
+                */
                 case 22, 23, 160, 209, 294, 449:
                 {
+                    // Give them crits
                     addthecrit = true;
-                    if (class == TFClass_Scout && cond == TFCond_HalloweenCritCandy) cond = TFCond_Buffed;
+                    // If they are a Scout and they currently have the
+                    //   Halloween Crit Candy condition
+                    if (class == TFClass_Scout && cond == TFCond_HalloweenCritCandy)
+                        // Set cond to the buff condition for them
+                        cond = TFCond_Buffed;
                 }
+                // If the weapon is the Holiday Punch
                 case 656:
                 {
+                    // Give them crits
                     addthecrit = true;
+                    // Set cond to the buff condition for them
                     cond = TFCond_Buffed;
                 }
             }
+            // Set class parameters
             switch (class)
             {
+                // If the class is Medic
                 case TFClass_Medic:
                 {
+                    // If the active weapon is their primary
                     if (weapon == GetPlayerWeaponSlot(client, TFWeaponSlot_Primary))
                     {
+                        // Get their medigun
                         new medigun = GetPlayerWeaponSlot(client, TFWeaponSlot_Secondary);
+                        // If their medigun is valid
                         if (IsValidEdict(medigun))
                         {
+                            // Set the HUD parameters
                             SetHudTextParams(-1.0, 0.83, 0.15, 255, 255, 255, 255,0,0.2,0.0,0.1);
+                            // Get the current charge
                             new charge = RoundFloat(GetEntPropFloat(medigun, Prop_Send, "m_flChargeLevel")*100);
+                            // Show the Medic's charge HUD
                             ShowHudText(client, -1,"%T: %i","uber-charge", client,charge);
-                            if (charge == 100 && !(FF2flags[client]&FF2FLAG_UBERREADY))
+                            // If they are fully charged and the flags are set up so that Medics
+                            //   announce that they're full charged
+                            if (charge == 100 && !(FF2flags[client] & FF2FLAG_UBERREADY))
                             {
+                                // Force the Medic to announce that he's fully charged
                                 FakeClientCommand(client,"voicemenu 1 7");
+                                // ???? Still no idea what this does
                                 FF2flags[client]|= FF2FLAG_UBERREADY;
                             }
                         }
                     }
+                    // If the active weapon is their secondary
                     if (weapon == GetPlayerWeaponSlot(client, TFWeaponSlot_Secondary))
                     {
+                        // Get their healing target
                         new healtarget = GetHealingTarget(client,true);
-                        if (IsValidClient(healtarget) && TF2_GetPlayerClass(healtarget) == TFClass_Scout)
+                        // If their heal target is valid
+                        if (IsValidClient(healtarget)
+                            // And it is a Scout
+                            && TF2_GetPlayerClass(healtarget) == TFClass_Scout)
                         {
+                            // Give the Medic a speed buff to match the Scout
                             TF2_AddCondition(client, TFCond_SpeedBuffAlly, 0.3);
                         }
                     }
                 }
-                case TFClass_DemoMan: if (!IsValidEntity(GetPlayerWeaponSlot(client, TFWeaponSlot_Secondary))) addthecrit = true;
-                case TFClass_Spy: if (validwep && weapon == GetPlayerWeaponSlot(client, TFWeaponSlot_Primary))
+                // If the class is Demoman
+                case TFClass_DemoMan:
+                // If their secondary weapon isn't valid (???? Shields?)
+                if (!IsValidEntity(GetPlayerWeaponSlot(client, TFWeaponSlot_Secondary)))
+                    // Give them crits
+                    addthecrit = true;
+                // If the class is Spy
+                case TFClass_Spy:
+                // If their weapon is valid and it is their primary weapon
+                if (validwep && weapon == GetPlayerWeaponSlot(client, TFWeaponSlot_Primary))
                 {
-                    if (!TF2_IsPlayerCritBuffed(client) && !TF2_IsPlayerInCondition(client, TFCond_Buffed) && !TF2_IsPlayerInCondition(client, TFCond_Cloaked) && !TF2_IsPlayerInCondition(client, TFCond_Disguised) && !GetEntProp(client, Prop_Send, "m_bFeignDeathReady"))
+                    // If the client isn't crit buffed
+                    if (!TF2_IsPlayerCritBuffed(client)
+                        // And they aren't buffed
+                        && !TF2_IsPlayerInCondition(client, TFCond_Buffed)
+                        // And they aren't cloaked
+                        && !TF2_IsPlayerInCondition(client, TFCond_Cloaked)
+                        // And they aren't disguised
+                        && !TF2_IsPlayerInCondition(client, TFCond_Disguised)
+                        // And their Dead Ringer isn't recharged
+                        && !GetEntProp(client, Prop_Send, "m_bFeignDeathReady"))
                     {
+                        // Give them the CritCola condition
                         TF2_AddCondition(client, TFCond_CritCola, 0.3);
                     }
                 }
-                case TFClass_Engineer: if (weapon == GetPlayerWeaponSlot(client, TFWeaponSlot_Primary) && index == 141)
+                // If the class is Engineer
+                case TFClass_Engineer:
+                // If their active weapon is their primary
+                if (weapon == GetPlayerWeaponSlot(client, TFWeaponSlot_Primary)
+                    // And it is a Frontier Justice
+                    && index == 141)
                 {
+                    // Get their sentry
                     new sentry = FindSentry(client);
-                    if (IsValidEntity(sentry) && IsBoss(GetEntPropEnt(sentry, Prop_Send, "m_hEnemy")))
+                    // If their sentry is valid
+                    if (IsValidEntity(sentry)
+                        // And it's targeting the boss
+                        && IsBoss(GetEntPropEnt(sentry, Prop_Send, "m_hEnemy")))
                     {
+                        // Give the Engineer 3 revenge crits
                         SetEntProp(client, Prop_Send, "m_iRevengeCrits", 3);
+                        // Give the Engineer the Kritzkreieged condition
                         TF2_AddCondition(client, TFCond_Kritzkrieged, 0.3);
                     }
                     else
@@ -3068,7 +3187,9 @@ public Action:ClientTimer(Handle:hTimer)
                             TF2_RemoveCondition(client, TFCond_Kritzkrieged);
                         }
                     }
-                }/*
+                }
+                // ???? Why is the Soldiers branch commented out?
+                /*
                 case TFClass_Soldier: if (TF2_IsPlayerInCondition(client,TFCond_Healing) && IsValidEdict((weapon = GetPlayerWeaponSlot(client, TFWeaponSlot_Secondary))) && GetEntProp(weapon, Prop_Send, "m_iItemDefinitionIndex") == 226 && !(FF2flags[client]&FF2FLAG_ISBUFFED))
                 {           
                     if (medic == -1)
@@ -3091,10 +3212,15 @@ public Action:ClientTimer(Handle:hTimer)
                     }
                 }*/
             }
+            // If the client is suppossed to be crit'd
             if (addthecrit)
             {
+                // Give them their condition (which is either HalloweenCritCandy or buff)
                 TF2_AddCondition(client, cond, 0.3);
-                if (medic!= -1 && cond != TFCond_Buffed) TF2_AddCondition(client, TFCond_Buffed, 0.3);
+                // ???? If the client isn't Medic and their condition isn't buff
+                if (medic!= -1 && cond != TFCond_Buffed)
+                    // Give them the buff condition
+                    TF2_AddCondition(client, TFCond_Buffed, 0.3);
             }
         }
     }
